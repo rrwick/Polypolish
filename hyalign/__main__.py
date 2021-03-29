@@ -15,8 +15,11 @@ If not, see <http://www.gnu.org/licenses/>.
 import argparse
 import pathlib
 import sys
+import tempfile
 
+from .alignment import align_reads
 from .help_formatter import MyParser, MyHelpFormatter
+from .insert_size import get_insert_size_distribution
 from .log import bold
 from .misc import get_default_thread_count, check_python_version, get_ascii_art
 from .version import __version__
@@ -24,22 +27,26 @@ from .version import __version__
 
 def main():
     check_python_version()
-    args = parse_args(sys.argv[1:])
+    args = parse_args()
+    with tempfile.TemporaryDirectory() as temp_dir:
+        temp_dir = pathlib.Path(temp_dir)
+        alignments = align_reads(args.target, args.short1, args.short2, temp_dir, args.threads)
+        insert_size_distribution = get_insert_size_distribution(alignments)
 
 
-def parse_args(args):
+def parse_args():
     description = 'R|' + get_ascii_art() + '\n' + \
-                  bold('Hyalign: a hybrid short-read aligner tool')
+                  bold('Hyalign: a tool for aligning short reads to a long-read assembly')
     parser = MyParser(description=description, formatter_class=MyHelpFormatter, add_help=False)
 
-
     required_args = parser.add_argument_group('Required arguments')
+    required_args.add_argument('-x', '--target', type=str, required=True,
+                               help='Alignment target (a long-read assembled genome in FASTA '
+                                    'format)')
     required_args.add_argument('-1', '--short1', type=str, required=True,
-                           help='Input short reads, first in pair (FASTQ format)')
+                               help='Input short reads, first in pair (FASTQ format)')
     required_args.add_argument('-2', '--short2', type=str, required=True,
-                           help='Input short reads, second in pair (FASTQ format)')
-    required_args.add_argument('-l', '--long', type=str, required=True,
-                           help='Input long reads (FASTQ format)')
+                               help='Input short reads, second in pair (FASTQ format)')
 
     setting_args = parser.add_argument_group('Settings')
     setting_args.add_argument('-t', '--threads', type=int, default=get_default_thread_count(),
@@ -52,11 +59,11 @@ def parse_args(args):
                            help="Show program's version number and exit")
 
     # If no arguments were used, print the base-level help which lists possible commands.
-    if len(args) == 0:
+    if len(sys.argv) == 1:
         parser.print_help(file=sys.stderr)
         sys.exit(1)
 
-    return parser.parse_args(args)
+    return parser.parse_args()
 
 
 if __name__ == '__main__':

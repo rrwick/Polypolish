@@ -12,9 +12,11 @@ If not, see <http://www.gnu.org/licenses/>.
 """
 
 import gzip
+import math
 import multiprocessing
 import os
 import pathlib
+import subprocess
 import sys
 
 from .log import log, bold_yellow
@@ -256,3 +258,31 @@ def get_ascii_art():
 
 def count_lines(filename):
     return sum(1 for _ in get_open_func(filename)(filename))
+
+
+def run_command(command):
+    result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                            universal_newlines=True)
+    return result.stdout.strip(), result.stderr.strip(), result.returncode
+
+
+def get_percentile(unsorted_list, percentile):
+    """
+    Returns a percentile of a list of numbers. Doesn't assume the list has already been sorted.
+    Implements the nearest rank method:
+    https://en.wikipedia.org/wiki/Percentile#The_Nearest_Rank_method
+    """
+    return get_percentile_sorted(sorted(unsorted_list), percentile)
+
+
+def get_percentile_sorted(sorted_list, percentile):
+    """
+    Same as the above function, but assumes the list is already sorted.
+    """
+    if not sorted_list:
+        return 0.0
+    fraction = percentile / 100.0
+    rank = int(math.ceil(fraction * len(sorted_list)))
+    if rank == 0:
+        return sorted_list[0]
+    return sorted_list[rank - 1]
