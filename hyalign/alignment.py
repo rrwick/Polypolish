@@ -11,24 +11,31 @@ details. You should have received a copy of the GNU General Public License along
 If not, see <http://www.gnu.org/licenses/>.
 """
 
-import collections
+import pathlib
 import re
-import sys
+import tempfile
 
 from .log import log, section_header, explanation, quit_with_error
 from .misc import run_command, iterate_fastq
 
 
-def align_reads(target, short1, short2, temp_dir, threads):
+def align_reads(target, short1, short2, threads):
     section_header('Aligning short reads to target sequence')
     explanation('Hyalign uses Bowtie2 to align the short reads to the target sequence. The '
                 'alignment is done in an unpaired end-to-end manner, and all alignments are kept '
                 'for each read.')
-    index = build_bowtie2_index(target, temp_dir)
-    read_filename, read_count = combine_reads_into_one_file(short1, short2, temp_dir)
-    alignments = align_with_bowtie2(read_filename, index, threads)
-    print_alignment_info(alignments, read_count)
-    return alignments
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        temp_dir = pathlib.Path(temp_dir)
+        log('Creating temp directory for working files:')
+        log(f'  {temp_dir}')
+        log()
+        index = build_bowtie2_index(target, temp_dir)
+        read_filename, read_count, read_names = \
+            combine_reads_into_one_file(short1, short2,temp_dir)
+        alignments = align_with_bowtie2(read_filename, read_names, index, threads)
+        print_alignment_info(alignments, read_count, read_names)
+        return alignments, read_names, read_count
 
 
 def build_bowtie2_index(target, temp_dir):
@@ -47,57 +54,103 @@ def build_bowtie2_index(target, temp_dir):
 def combine_reads_into_one_file(short1, short2, temp_dir):
     log(f'Combining paired reads into one file:')
     read_filename = str(temp_dir / 'reads.fastq')
-    read_count = 0
+    first_count, second_count, total_count = 0, 0, 0
+    first_names, second_names = set(), set()
     with open(read_filename, 'wt') as r:
-        for _, header, sequence, qualities in iterate_fastq(short1):
+        for name, header, sequence, qualities in iterate_fastq(short1):
+            if not name.endswith('/1'):
+                quit_with_error('Error: read names in first file must end with "/1"')
             r.write(f'{header}\n{sequence}\n+\n{qualities}\n')
-            read_count += 1
-        for _, header, sequence, qualities in iterate_fastq(short2):
+            short_name = name[:-2]
+            if short_name in first_names:
+                quit_with_error(f'Error: duplicate read name {name}')
+            first_names.add(short_name)
+            first_count += 1
+            total_count += 1
+        for name, header, sequence, qualities in iterate_fastq(short2):
+            if not name.endswith('/2'):
+                quit_with_error('Error: read names in second file must end with "/2"')
             r.write(f'{header}\n{sequence}\n+\n{qualities}\n')
-            read_count += 1
-    log(f'  {read_count:,} reads')
+            short_name = name[:-2]
+            if short_name in second_names:
+                quit_with_error(f'Error: duplicate read name {name}')
+            second_names.add(short_name)
+            second_count += 1
+            total_count += 1
+    if first_count != second_count:
+        quit_with_error('Error: unequal number of reads in each file')
+    if first_names != second_names:
+        quit_with_error('Error: read names in first and second files do not match')
+    log(f'  {total_count:,} reads')
     log(f'  {read_filename}')
     log()
-    return read_filename, read_count
+    return read_filename, total_count, first_names
 
 
-def align_with_bowtie2(reads, index, threads):
+def align_with_bowtie2(reads, read_names, index, threads):
     log(f'Aligning reads with Bowtie2:')
     command = ['bowtie2', '-U', reads, '-x', index, '-a', '--threads', str(threads), '--end-to-end']
-    log(' '.join(command))
+    log('  ' + ' '.join(command))
     stdout, stderr, return_code = run_command(command)
-    alignments = collections.defaultdict(list)
+    alignments = {}
+    for name in read_names:
+        alignments[name + '/1'] = []
+        alignments[name + '/2'] = []
     for line in stdout.splitlines():
         if line.startswith('@'):
             continue
         alignment = Alignment(line)
-        alignments[alignment.read_name].append(alignment)
+        if alignment.is_aligned():
+            alignments[alignment.read_name].append(alignment)
     log()
     return alignments
 
 
-def print_alignment_info(alignments, read_count):
-    sam_count, alignment_count, zero_count, single_count, multi_count = 0, 0, 0, 0, 0
-    for read, read_alignments in alignments.items():
-        sam_count += len(read_alignments)
-        for a in read_alignments:
-            if not a.has_flag(4):  # read is aligned
-                alignment_count += 1
-        if len(read_alignments) == 1:
-            if read_alignments[0].is_aligned():
-                single_count += 1
-            else:
-                zero_count += 1
+def print_alignment_info(alignments, read_count, read_names):
+    log('Summary:')
+    alignment_count, zero_count, single_count, multi_count = 0, 0, 0, 0
+    incomplete_pair_count, unique_pair_count, multi_pair_count = 0, 0, 0
+
+    for name in read_names:
+        name_1 = name + '/1'
+        name_2 = name + '/2'
+        count_1 = len(alignments[name_1])
+        count_2 = len(alignments[name_2])
+        alignment_count += count_1
+        alignment_count += count_2
+        if count_1 == 0:
+            zero_count += 1
+        elif count_1 == 1:
+            single_count += 1
         else:
             multi_count += 1
-    log(f'  {sam_count:,} SAM lines')
-    number_size = len(f'{sam_count:,}')
-    log(f'  {f"{alignment_count:,}".rjust(number_size)} alignments')
+        if count_2 == 0:
+            zero_count += 1
+        elif count_2 == 1:
+            single_count += 1
+        else:
+            multi_count += 1
+        if count_1 == 0 or count_2 == 0:
+            incomplete_pair_count += 1
+        elif count_1 == 1 and count_2 == 1:
+            unique_pair_count += 1
+        else:
+            assert count_1 > 1 or count_2 > 1
+            multi_pair_count += 1
+
+    log(f'  {alignment_count:,} alignments')
+    number_size = len(f'{alignment_count:,}')
+    log()
     log(f'  {f"{zero_count:,}".rjust(number_size)} reads have no alignments')
     log(f'  {f"{single_count:,}".rjust(number_size)} reads have one alignment')
     log(f'  {f"{multi_count:,}".rjust(number_size)} reads have multiple alignments')
     log()
-    assert zero_count + single_count + multi_count == read_count
+    log(f'  {f"{incomplete_pair_count:,}".rjust(number_size)} read pairs are incomplete')
+    log(f'  {f"{unique_pair_count:,}".rjust(number_size)} read pairs are uniquely aligned')
+    log(f'  {f"{multi_pair_count:,}".rjust(number_size)} read pairs have multiple combinations')
+    log()
+    assert read_count == zero_count + single_count + multi_count
+    assert read_count // 2 == incomplete_pair_count + unique_pair_count + multi_pair_count
 
 
 class Alignment(object):
@@ -106,7 +159,7 @@ class Alignment(object):
         self.sam_line = sam_line.strip()
         parts = self.sam_line.split('\t')
         if len(parts) < 11:
-            sys.exit('\nError: alignment file does not seem to be in SAM format')
+            quit_with_error('\nError: alignment file does not seem to be in SAM format')
         self.sam_line = sam_line
         self.read_name = parts[0]
         self.flags = int(parts[1])
@@ -115,6 +168,8 @@ class Alignment(object):
         self.map_q = int(parts[4])
         self.cigar = parts[5]
         self.ref_end = get_ref_end(self.ref_start, self.cigar)
+        self.read_seq = parts[9]
+        self.masked_read_seq = None
 
     def has_flag(self, flag: int):
         return bool(self.flags & flag)
@@ -130,6 +185,9 @@ class Alignment(object):
 
     def has_no_indels(self):
         return self.cigar.endswith('M') and self.cigar[:-1].isdigit()
+
+    def __repr__(self):
+        return f'{self.read_name}:{self.ref_name}:{self.ref_start}-{self.ref_end}'
 
 
 def get_ref_end(ref_start, cigar):

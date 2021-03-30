@@ -11,8 +11,7 @@ details. You should have received a copy of the GNU General Public License along
 If not, see <http://www.gnu.org/licenses/>.
 """
 
-import collections
-
+from .alignment import print_alignment_info
 from .log import log, section_header, explanation
 from .misc import get_percentile_sorted
 from . import settings
@@ -38,10 +37,10 @@ def get_insert_size_distribution(alignments):
 def get_uniquely_aligned_pairs(alignments):
     unique_pairs = []
     for name_1, alignments_1 in alignments.items():
-        if name_1.endswith('/1') and len(alignments_1) == 1 and alignments_1[0].is_aligned():
+        if name_1.endswith('/1') and len(alignments_1) == 1:
             name_2 = name_1[:-2] + '/2'
             alignments_2 = alignments[name_2]
-            if len(alignments_2) == 1 and alignments_2[0].is_aligned():
+            if len(alignments_2) == 1:
                 unique_pairs.append((alignments_1[0], alignments_2[0]))
     return unique_pairs
 
@@ -66,8 +65,74 @@ def get_insert_size(alignment_1, alignment_2):
 def get_distribution(insert_sizes):
     insert_sizes = sorted(insert_sizes)
     distribution = {}
-    log('Percentile   Insert')
+    log('Percentile   Insert size')
     for p in [0.001, 0.01, 0.1, 1, 10, 50, 90, 99, 99.9, 99.99, 99.999]:
         distribution[p] = get_percentile_sorted(insert_sizes, p)
-        log(f'    {p:6.3f}   {distribution[p]:6}')
+        log(f'    {p:6.3f}        {distribution[p]:6}')
+    log()
     return distribution
+
+
+def select_alignments_using_insert_size(alignments, distribution, read_names, read_count):
+    """
+    This function modifies the alignments dictionary, removing alignments that are not part of a
+    pair with a good insert size.
+    """
+    section_header('Selecting alignments using insert size')
+    explanation('Hyalign now filters alignments using insert size. Whenever there is a read pair '
+                'with multiple possible combinations, Hyalign will discard any alignments that do '
+                'not appear to be part of a combination with a valid insert size.')
+
+    for name in sorted(read_names):
+        name_1, name_2 = name + '/1', name + '/2'
+        alignments_1, alignments_2 = alignments[name_1], alignments[name_2]
+        count_1, count_2 = len(alignments_1), len(alignments_2)
+        if count_1 >= 1 and count_2 >= 1 and count_1+count_2 >= 3:
+            good_1 = select_good_alignments(alignments_1, alignments_2, distribution)
+            good_2 = select_good_alignments(alignments_2, alignments_1, distribution)
+            alignments[name_1] = good_1
+            alignments[name_2] = good_2
+    print_alignment_info(alignments, read_count, read_names)
+
+
+def select_good_alignments(alignments_1, alignments_2, distribution):
+    """
+    This function looks at all pairwise combinations of alignments from the two groups and returns
+    a list of alignments from the first group which seem to be in good pairs.
+    """
+    all_scores = []
+    for a_1 in alignments_1:
+        for a_2 in alignments_2:
+            insert_size = get_insert_size(a_1, a_2)
+            all_scores.append(score_insert_size(insert_size, distribution))
+    max_score = max(all_scores)
+    threshold_score = max_score - 2
+    good_alignments = []
+    for a_1 in alignments_1:
+        in_a_good_pair = False
+        for a_2 in alignments_2:
+            insert_size = get_insert_size(a_1, a_2)
+            score = score_insert_size(insert_size, distribution)
+            if score >= threshold_score:
+                in_a_good_pair = True
+        if in_a_good_pair:
+            good_alignments.append(a_1)
+    return good_alignments
+
+
+def score_insert_size(insert_size, distribution):
+    """
+    Returns a score for the insert size, with higher values being better. In this context, 'better'
+    means closer to a typical insert size based on the empirical distribution.
+    """
+    if distribution[10.0] <= insert_size <= distribution[90.0]:
+        return 5
+    if distribution[1.0] <= insert_size <= distribution[99.0]:
+        return 4
+    if distribution[0.1] <= insert_size <= distribution[99.9]:
+        return 3
+    if distribution[0.01] <= insert_size <= distribution[99.99]:
+        return 2
+    if distribution[0.001] <= insert_size <= distribution[99.999]:
+        return 1
+    return 0
