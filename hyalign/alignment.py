@@ -16,13 +16,13 @@ import re
 import tempfile
 
 from .log import log, section_header, explanation, quit_with_error
-from .misc import run_command, iterate_fastq
+from .misc import run_command, iterate_fastq, reverse_complement
 
 
 def align_reads(target, short1, short2, threads):
     section_header('Aligning short reads to target sequence')
-    explanation('Hyalign uses Bowtie2 to align the short reads to the target sequence. The '
-                'alignment is done in an unpaired end-to-end manner, and all alignments are kept '
+    explanation('Hyalign uses minimap2 to align the short reads to the target sequence. The '
+                'alignment is done in an unpaired manner, and all end-to-end alignments are kept '
                 'for each read.')
 
     with tempfile.TemporaryDirectory() as temp_dir:
@@ -30,25 +30,13 @@ def align_reads(target, short1, short2, threads):
         log('Creating temp directory for working files:')
         log(f'  {temp_dir}')
         log()
-        index = build_bowtie2_index(target, temp_dir)
         read_filename, read_count, read_names = \
             combine_reads_into_one_file(short1, short2,temp_dir)
-        alignments = align_with_bowtie2(read_filename, read_names, index, threads)
+        alignments = align_with_minimap2(read_filename, read_names, target, threads)
+        add_secondary_read_seqs(alignments, read_names)
+        filter_for_end_to_end(alignments, read_names)
         print_alignment_info(alignments, read_count, read_names)
         return alignments, read_names, read_count
-
-
-def build_bowtie2_index(target, temp_dir):
-    log(f'Building a Bowtie2 index for {target}:')
-    index = str(temp_dir / 'index')
-    stdout, stderr, return_code = run_command(['bowtie2-build', target, index])
-    if return_code != 0:
-        log('\n' + stderr)
-        quit_with_error(f'Error: bowtie2-build command failed on {target}')
-    for f in sorted(temp_dir.glob('*')):
-        log(f'  {f}')
-    log()
-    return index
 
 
 def combine_reads_into_one_file(short1, short2, temp_dir):
@@ -87,9 +75,10 @@ def combine_reads_into_one_file(short1, short2, temp_dir):
     return read_filename, total_count, first_names
 
 
-def align_with_bowtie2(reads, read_names, index, threads):
-    log(f'Aligning reads with Bowtie2:')
-    command = ['bowtie2', '-U', reads, '-x', index, '-a', '--threads', str(threads), '--end-to-end']
+def align_with_minimap2(reads, read_names, target, threads):
+    log(f'Aligning reads with minimap2:')
+    command = ['minimap2', '-ax', 'sr', '--secondary=yes', '-p', '0.1', '-N', '1000000',
+               '-t', str(threads), target, reads]
     log('  ' + ' '.join(command))
     stdout, stderr, return_code = run_command(command)
     alignments = {}
@@ -104,6 +93,47 @@ def align_with_bowtie2(reads, read_names, index, threads):
             alignments[alignment.read_name].append(alignment)
     log()
     return alignments
+
+
+def add_secondary_read_seqs(alignments, read_names):
+    """
+    Secondary alignments don't have read sequences or qualities, but we will need those later, so
+    we add them in now.
+    """
+    all_names = [n + '/1' for n in read_names] + [n + '/2' for n in read_names]
+    for name in all_names:
+        if len(alignments[name]) == 0:
+            continue
+        seq, qual = None, None
+        for a in alignments[name]:
+            if a.is_secondary():
+                assert a.read_seq == '*' and a.read_qual == '*'
+            else:
+                assert a.read_seq != '*' and a.read_qual != '*'
+                if a.is_on_forward_strand():
+                    seq = a.read_seq
+                    qual = a.read_qual
+                else:
+                    seq = reverse_complement(a.read_seq)
+                    qual = a.read_qual[::-1]
+                break
+        assert seq is not None and qual is not None
+        for a in alignments[name]:
+            if a.is_secondary():
+                if a.is_on_forward_strand():
+                    a.read_seq = seq
+                    a.read_qual = qual
+                else:
+                    a.read_seq = reverse_complement(seq)
+                    a.read_qual = qual[::-1]
+        for a in alignments[name]:
+            assert a.read_seq != '*' and a.read_qual != '*'
+
+
+def filter_for_end_to_end(alignments, read_names):
+    all_names = [n + '/1' for n in read_names] + [n + '/2' for n in read_names]
+    for name in all_names:
+        alignments[name] = [a for a in alignments[name] if a.starts_and_ends_with_match()]
 
 
 def print_alignment_info(alignments, read_count, read_names):
@@ -169,6 +199,7 @@ class Alignment(object):
         self.cigar = parts[5]
         self.ref_end = get_ref_end(self.ref_start, self.cigar)
         self.read_seq = parts[9]
+        self.read_qual = parts[10]
         self.masked_read_seq = None
 
     def has_flag(self, flag: int):
@@ -176,6 +207,9 @@ class Alignment(object):
 
     def is_aligned(self):
         return not self.has_flag(4)
+
+    def is_secondary(self):
+        return self.has_flag(256)
 
     def is_on_reverse_strand(self):
         return self.has_flag(16)
@@ -185,6 +219,11 @@ class Alignment(object):
 
     def has_no_indels(self):
         return self.cigar.endswith('M') and self.cigar[:-1].isdigit()
+
+    def starts_and_ends_with_match(self):
+        cigar_parts = re.findall(r'\d+[MIDNSHP=X]', self.cigar)
+        first_part, last_part = cigar_parts[0], cigar_parts[-1]
+        return first_part[-1] == 'M' and last_part[-1] == 'M'
 
     def __repr__(self):
         return f'{self.read_name}:{self.ref_name}:{self.ref_start}-{self.ref_end}'

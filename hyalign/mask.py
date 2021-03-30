@@ -38,10 +38,19 @@ def mark_read_sequences(read_names, alignments, target):
         read_alignments = alignments[name]
         read_mismatches_all_alignments = None
         for a in read_alignments:
+            print()  # TEMP
+            print(a)  # TEMP
+            print(a.cigar, '+' if a.is_on_forward_strand() else '-')  # TEMP
+            print(a.sam_line)  # TEMP
+
             ref_seq = target_seqs[a.ref_name][a.ref_start:a.ref_end]
 
             aligned_read_seq, aligned_ref_seq, diffs, read_mismatches, _ = \
                 align_seqs(a.read_seq, ref_seq, a.cigar)
+
+            # Sanity check: if there are too many mismatches, something has gone terribly wrong!
+            assert len(read_mismatches) < len(a.read_seq) // 2
+
             if a.is_on_reverse_strand():
                 read_mismatches = flip_positions(read_mismatches, len(a.read_seq))
             if read_mismatches_all_alignments is None:
@@ -49,9 +58,6 @@ def mark_read_sequences(read_names, alignments, target):
             else:
                 read_mismatches_all_alignments &= read_mismatches
 
-            print()  # TEMP
-            print(a)  # TEMP
-            print(a.cigar, a.is_on_forward_strand())  # TEMP
             print(aligned_read_seq)  # TEMP
             print(aligned_ref_seq)  # TEMP
             print(diffs)  # TEMP
@@ -71,7 +77,7 @@ def align_seqs(seq_1, seq_2, cigar):
     expanded_cigar = get_expanded_cigar(cigar)
     i, j = 0, 0
     aligned_seq_1, aligned_seq_2, differences = [], [], []
-    seq_1_mismatchs, seq_1_mismatchs = set(), set()
+    seq_1_mismatches, seq_2_mismatches = set(), set()
     for c in expanded_cigar:
         if c == 'M':
             b_1 = seq_1[i]
@@ -80,8 +86,8 @@ def align_seqs(seq_1, seq_2, cigar):
                 diff = ' '
             else:
                 diff = '*'
-                seq_1_mismatchs.add(i)
-                seq_1_mismatchs.add(j)
+                seq_1_mismatches.add(i)
+                seq_2_mismatches.add(j)
             i += 1
             j += 1
         elif c == 'I':
@@ -106,7 +112,7 @@ def align_seqs(seq_1, seq_2, cigar):
     differences = ''.join(differences)
     assert aligned_seq_1.replace('-', '') == seq_1
     assert aligned_seq_2.replace('-', '') == seq_2
-    return aligned_seq_1, aligned_seq_2, differences, seq_1_mismatchs, seq_1_mismatchs
+    return aligned_seq_1, aligned_seq_2, differences, seq_1_mismatches, seq_2_mismatches
 
 
 def get_expanded_cigar(cigar):
