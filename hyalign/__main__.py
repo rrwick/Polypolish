@@ -28,7 +28,7 @@ def main():
     check_python_version()
     args = parse_args()
     alignments, read_names, read_count = \
-        align_reads(args.target, args.short1, args.short2, args.threads)
+        align_reads(args.target, args.short1, args.short2, args.threads, args.max_errors)
     insert_size_distribution = get_insert_size_distribution(alignments)
     select_alignments_using_insert_size(alignments, insert_size_distribution,
                                         read_names, read_count)
@@ -53,6 +53,9 @@ def parse_args():
                                help='Input short reads, second in pair (FASTQ format)')
 
     setting_args = parser.add_argument_group('Settings')
+    setting_args.add_argument('-m', '--max_errors', type=int, default=20,
+                              help='Ignore alignments with more than this number of mismatches '
+                                   'and indels')
     setting_args.add_argument('-t', '--threads', type=int, default=get_default_thread_count(),
                               help='Number of threads')
 

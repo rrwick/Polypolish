@@ -19,7 +19,7 @@ from .log import log, section_header, explanation, quit_with_error
 from .misc import run_command, iterate_fastq, reverse_complement
 
 
-def align_reads(target, short1, short2, threads):
+def align_reads(target, short1, short2, threads, max_errors):
     section_header('Aligning short reads to target sequence')
     explanation('Hyalign uses minimap2 to align the short reads to the target sequence. The '
                 'alignment is done in an unpaired manner, and all end-to-end alignments are kept '
@@ -34,7 +34,7 @@ def align_reads(target, short1, short2, threads):
             combine_reads_into_one_file(short1, short2,temp_dir)
         alignments = align_with_minimap2(read_filename, read_names, target, threads)
         add_secondary_read_seqs(alignments, read_names)
-        filter_for_end_to_end(alignments, read_names)
+        filter_alignments(alignments, read_names, max_errors)
         print_alignment_info(alignments, read_count, read_names)
         return alignments, read_names, read_count
 
@@ -130,10 +130,11 @@ def add_secondary_read_seqs(alignments, read_names):
             assert a.read_seq != '*' and a.read_qual != '*'
 
 
-def filter_for_end_to_end(alignments, read_names):
+def filter_alignments(alignments, read_names, max_errors):
     all_names = [n + '/1' for n in read_names] + [n + '/2' for n in read_names]
     for name in all_names:
-        alignments[name] = [a for a in alignments[name] if a.starts_and_ends_with_match()]
+        alignments[name] = [a for a in alignments[name]
+                            if a.starts_and_ends_with_match() and a.nm_tag <= max_errors]
 
 
 def print_alignment_info(alignments, read_count, read_names):
@@ -190,6 +191,7 @@ class Alignment(object):
         parts = self.sam_line.split('\t')
         if len(parts) < 11:
             quit_with_error('\nError: alignment file does not seem to be in SAM format')
+
         self.sam_line = sam_line
         self.read_name = parts[0]
         self.flags = int(parts[1])
@@ -201,6 +203,12 @@ class Alignment(object):
         self.read_seq = parts[9]
         self.read_qual = parts[10]
         self.masked_read_seq = None
+
+        self.nm_tag = None
+        for p in parts:
+            if p.startswith('NM:i:'):
+                self.nm_tag = int(p[5:])
+        assert self.nm_tag is not None
 
     def has_flag(self, flag: int):
         return bool(self.flags & flag)
