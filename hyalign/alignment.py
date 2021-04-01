@@ -30,13 +30,13 @@ def align_reads(target, short1, short2, threads, max_errors):
         log('Creating temp directory for working files:')
         log(f'  {temp_dir}')
         log()
-        read_filename, read_count, read_names = \
+        read_filename, read_count, read_pair_names = \
             combine_reads_into_one_file(short1, short2,temp_dir)
-        alignments = align_with_minimap2(read_filename, read_names, target, threads)
-        add_secondary_read_seqs(alignments, read_names)
-        filter_alignments(alignments, read_names, max_errors)
-        print_alignment_info(alignments, read_count, read_names)
-        return alignments, read_names, read_count
+        alignments = align_with_minimap2(read_filename, read_pair_names, target, threads)
+        add_secondary_read_seqs(alignments, read_pair_names)
+        filter_alignments(alignments, read_pair_names, max_errors)
+        print_alignment_info(alignments, read_count, read_pair_names)
+        return alignments, read_pair_names, read_count
 
 
 def combine_reads_into_one_file(short1, short2, temp_dir):
@@ -75,14 +75,15 @@ def combine_reads_into_one_file(short1, short2, temp_dir):
     return read_filename, total_count, first_names
 
 
-def align_with_minimap2(reads, read_names, target, threads):
+def align_with_minimap2(reads, read_pair_names, target, threads):
     log(f'Aligning reads with minimap2:')
     command = ['minimap2', '-ax', 'sr', '--secondary=yes', '-p', '0.1', '-N', '1000000',
                '-t', str(threads), target, reads]
     log('  ' + ' '.join(command))
     stdout, stderr, return_code = run_command(command)
     alignments = {}
-    for name in read_names:
+    alignment_count = 0
+    for name in read_pair_names:
         alignments[name + '/1'] = []
         alignments[name + '/2'] = []
     for line in stdout.splitlines():
@@ -91,17 +92,19 @@ def align_with_minimap2(reads, read_names, target, threads):
         alignment = Alignment(line)
         if alignment.is_aligned():
             alignments[alignment.read_name].append(alignment)
+            alignment_count += 1
+    log(f'  {alignment_count:,} total alignments')
     log()
     return alignments
 
 
-def add_secondary_read_seqs(alignments, read_names):
+def add_secondary_read_seqs(alignments, read_pair_names):
     """
     Secondary alignments don't have read sequences or qualities, but we will need those later, so
     we add them in now.
     """
-    all_names = [n + '/1' for n in read_names] + [n + '/2' for n in read_names]
-    for name in all_names:
+    read_names = [n + '/1' for n in read_pair_names] + [n + '/2' for n in read_pair_names]
+    for name in read_names:
         if len(alignments[name]) == 0:
             continue
         seq, qual = None, None
@@ -130,19 +133,22 @@ def add_secondary_read_seqs(alignments, read_names):
             assert a.read_seq != '*' and a.read_qual != '*'
 
 
-def filter_alignments(alignments, read_names, max_errors):
-    all_names = [n + '/1' for n in read_names] + [n + '/2' for n in read_names]
-    for name in all_names:
+def filter_alignments(alignments, read_pair_names, max_errors):
+    log('Filtering for high quality end-to-end alignments... ', end='')
+    read_names = [n + '/1' for n in read_pair_names] + [n + '/2' for n in read_pair_names]
+    for name in read_names:
         alignments[name] = [a for a in alignments[name]
                             if a.starts_and_ends_with_match() and a.nm_tag <= max_errors]
+    log('done')
+    log()
 
 
-def print_alignment_info(alignments, read_count, read_names):
+def print_alignment_info(alignments, read_count, read_pair_names):
     log('Summary:')
     alignment_count, zero_count, single_count, multi_count = 0, 0, 0, 0
     incomplete_pair_count, unique_pair_count, multi_pair_count = 0, 0, 0
 
-    for name in read_names:
+    for name in read_pair_names:
         name_1 = name + '/1'
         name_2 = name + '/2'
         count_1 = len(alignments[name_1])
@@ -182,6 +188,22 @@ def print_alignment_info(alignments, read_count, read_names):
     log()
     assert read_count == zero_count + single_count + multi_count
     assert read_count // 2 == incomplete_pair_count + unique_pair_count + multi_pair_count
+
+
+def get_multi_alignment_read_names(read_pair_names, alignments):
+    """
+    Returns a list of the names of individual reads (i.e. not read pairs) with more than one
+    alignment.
+    """
+    multi_alignment_read_names = []
+    for name in sorted(read_pair_names):
+        name_1, name_2 = name + '/1', name + '/2'
+        alignments_1, alignments_2 = alignments[name_1], alignments[name_2]
+        if len(alignments_1) > 1:
+            multi_alignment_read_names.append(name_1)
+        if len(alignments_2) > 1:
+            multi_alignment_read_names.append(name_2)
+    return multi_alignment_read_names
 
 
 class Alignment(object):

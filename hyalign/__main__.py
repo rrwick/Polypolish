@@ -19,7 +19,8 @@ from .alignment import align_reads
 from .help_formatter import MyParser, MyHelpFormatter
 from .insert_size import get_insert_size_distribution, select_alignments_using_insert_size
 from .log import bold
-from .mask import mark_read_sequences
+from .mask_reads import mask_read_sequences
+from .mask_target import mask_target_sequences
 from .misc import get_default_thread_count, check_python_version, get_ascii_art
 from .version import __version__
 
@@ -27,15 +28,13 @@ from .version import __version__
 def main():
     check_python_version()
     args = parse_args()
-    alignments, read_names, read_count = \
+    alignments, read_pair_names, read_count = \
         align_reads(args.target, args.short1, args.short2, args.threads, args.max_errors)
     insert_size_distribution = get_insert_size_distribution(alignments)
     select_alignments_using_insert_size(alignments, insert_size_distribution,
-                                        read_names, read_count)
-    mark_read_sequences(read_names, alignments, args.target)
-
-
-
+                                        read_pair_names, read_count)
+    mask_read_sequences(read_pair_names, alignments, args.target)
+    mask_target_sequences(read_pair_names, alignments, args.target)
 
 
 def parse_args():

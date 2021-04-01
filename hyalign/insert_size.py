@@ -73,7 +73,7 @@ def get_distribution(insert_sizes):
     return distribution
 
 
-def select_alignments_using_insert_size(alignments, distribution, read_names, read_count):
+def select_alignments_using_insert_size(alignments, distribution, read_pair_names, read_count):
     """
     This function modifies the alignments dictionary, removing alignments that are not part of a
     pair with a good insert size.
@@ -83,7 +83,7 @@ def select_alignments_using_insert_size(alignments, distribution, read_names, re
                 'with multiple possible combinations, Hyalign will discard any alignments that do '
                 'not appear to be part of a combination with a valid insert size.')
 
-    for name in sorted(read_names):
+    for name in sorted(read_pair_names):
         name_1, name_2 = name + '/1', name + '/2'
         alignments_1, alignments_2 = alignments[name_1], alignments[name_2]
         count_1, count_2 = len(alignments_1), len(alignments_2)
@@ -92,7 +92,7 @@ def select_alignments_using_insert_size(alignments, distribution, read_names, re
             good_2 = select_good_alignments(alignments_2, alignments_1, distribution)
             alignments[name_1] = good_1
             alignments[name_2] = good_2
-    print_alignment_info(alignments, read_count, read_names)
+    print_alignment_info(alignments, read_count, read_pair_names)
 
 
 def select_good_alignments(alignments_1, alignments_2, distribution):
