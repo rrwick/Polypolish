@@ -20,7 +20,7 @@ from .help_formatter import MyParser, MyHelpFormatter
 from .insert_size import get_insert_size_distribution, select_alignments_using_insert_size
 from .log import bold
 from .mask_reads import mask_read_sequences
-from .mask_target import mask_target_sequences
+from .informative_positions import find_informative_positions
 from .misc import get_default_thread_count, check_python_version, get_ascii_art
 from .version import __version__
 
@@ -34,7 +34,7 @@ def main():
     select_alignments_using_insert_size(alignments, insert_size_distribution,
                                         read_pair_names, read_count)
     mask_read_sequences(read_pair_names, alignments, args.target)
-    mask_target_sequences(read_pair_names, alignments, args.target)
+    informative_positions = find_informative_positions(read_pair_names, alignments, args.target)
 
 
 def parse_args():

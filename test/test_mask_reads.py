@@ -14,7 +14,7 @@ details. You should have received a copy of the GNU General Public License along
 If not, see <http://www.gnu.org/licenses/>.
 """
 
-import hyalign.mask
+import hyalign.mask_reads
 
 
 def test_flip_positions_1():
@@ -23,7 +23,7 @@ def test_flip_positions_1():
     0123456789
     9876543210
     """
-    assert hyalign.mask.flip_positions({0, 1, 2}, 10) == {7, 8, 9}
+    assert hyalign.mask_reads.flip_positions({0, 1, 2}, 10) == {7, 8, 9}
 
 
 def test_flip_positions_2():
@@ -32,7 +32,7 @@ def test_flip_positions_2():
     0123456789
     9876543210
     """
-    assert hyalign.mask.flip_positions({1, 5, 6, 8}, 10) == {1, 3, 4, 8}
+    assert hyalign.mask_reads.flip_positions({1, 5, 6, 8}, 10) == {1, 3, 4, 8}
 
 
 def test_flip_positions_3():
@@ -41,4 +41,4 @@ def test_flip_positions_3():
     012345678
     876543210
     """
-    assert hyalign.mask.flip_positions({1, 5, 6, 8}, 9) == {0, 2, 3, 7}
+    assert hyalign.mask_reads.flip_positions({1, 5, 6, 8}, 9) == {0, 2, 3, 7}

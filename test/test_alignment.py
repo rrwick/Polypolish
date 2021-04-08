@@ -19,7 +19,7 @@ import hyalign.alignment
 
 def test_flags_1():
     flags = 345
-    a = hyalign.alignment.Alignment(f'read\t{flags}\tref\t0\t0\t4M\t*\t0\t0\tACGT\tAAAA')
+    a = hyalign.alignment.Alignment(f'read\t{flags}\tref\t0\t0\t4M\t*\t0\t0\tACGT\tAAAA\tNM:i:0')
     assert a.has_flag(1)
     assert not a.has_flag(2)
     assert not a.has_flag(4)
@@ -36,7 +36,7 @@ def test_flags_1():
 
 def test_flags_2():
     flags = 1044
-    a = hyalign.alignment.Alignment(f'read\t{flags}\tref\t0\t0\t4M\t*\t0\t0\tACGT\tAAAA')
+    a = hyalign.alignment.Alignment(f'read\t{flags}\tref\t0\t0\t4M\t*\t0\t0\tACGT\tAAAA\tNM:i:0')
     assert not a.has_flag(1)
     assert not a.has_flag(2)
     assert a.has_flag(4)

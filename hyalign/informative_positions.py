@@ -12,48 +12,79 @@ If not, see <http://www.gnu.org/licenses/>.
 """
 
 import collections
+import math
 import re
+import statistics
 
 from .alignment import get_multi_alignment_read_names
 from .log import log, section_header, explanation
 from .misc import load_fasta
 
 
-def mask_target_sequences(read_pair_names, alignments, target):
-    section_header('Masking target sequences')
-    explanation('Hyalign now masks out any bases of the target sequence which lack significant '
-                'ambiguity. E.g. if a target base is "A" and all read alignments agree with that '
-                'base, then that position is not informative and will be masked. But if the read '
-                'alignments show ambiguity (some say "A" and some say "T"), then that position '
-                'is informative and will not be masked.')
+def find_informative_positions(read_pair_names, alignments, target):
+    section_header('Finding informative target positions')
+    explanation('Hyalign now finds bases in the target sequence which have significant ambiguity. '
+                'E.g. if a target base is "A" and all read alignments agree with that base, then '
+                'that position is not informative. But if the read alignments show ambiguity '
+                '(e.g. some say "A" and some say "T"), then that position is informative.')
 
     target_seqs = load_fasta(target)
     repetitive_regions = find_repetitive_regions(target_seqs, read_pair_names, alignments)
+    informative_positions = {}
     for target_name, target_seq in target_seqs:
-        mask_one_target_sequence(target_name, target_seq, alignments, read_pair_names,
-                                 repetitive_regions[target_name])
+        informative_positions[target_name] = \
+            find_positions(target_name, target_seq, alignments, read_pair_names,
+                           repetitive_regions[target_name])
+    return informative_positions
 
 
 def find_repetitive_regions(target_seqs, read_pair_names, alignments):
     repetitive_regions = {name: set() for name, _ in target_seqs}
     multi_alignment_read_names = get_multi_alignment_read_names(read_pair_names, alignments)
-
-    # TODO: find repetitive regions of the target by looking for all positions covered by
-    #       multi-alignment reads.
-
+    for name in multi_alignment_read_names:
+        read_alignments = alignments[name]
+        for a in read_alignments:
+            for i in range(a.ref_start, a.ref_end):
+                repetitive_regions[a.ref_name].add(i)
     return repetitive_regions
 
 
-def mask_one_target_sequence(target_name, target_seq, alignments, read_pair_names,
-                             repetitive_regions):
+def find_positions(target_name, target_seq, alignments, read_pair_names, repetitive_regions):
+    log(f'Analysing {target_name}:')
+    log(f'  {len(target_seq):,} bp total')
+    repeat_length = len(repetitive_regions)
+    repeat_percent = 100.0 * repeat_length / len(target_seq)
+    log(f'  {repeat_length:,} bp repetitive ({repeat_percent:.2}%)')
+
+    pileup = get_pileup(read_pair_names, alignments, target_name, target_seq)
+    non_repeat_depth = get_mean_non_repeat_depth(pileup, repetitive_regions)
+    non_ref_base_threshold = int(math.ceil(non_repeat_depth / 10))
+    log(f'  Mean non-repeat depth: {non_repeat_depth:.1f}')
+    log(f'  Minimum ambiguity threshold: {non_ref_base_threshold}')
+
+    informative_positions = set()
+    log('  Finding informative positions: ', end='')
+    for i in sorted(pileup.keys()):
+        if i in repetitive_regions:
+            counts = [pileup[i].count(b) for b in set(pileup[i])]
+            if len(counts) == 1:
+                second_best_count = 0
+            else:
+                second_best_count = sorted(counts)[-2]
+            if second_best_count >= non_ref_base_threshold:
+                informative_positions.add(i)
+    log(f'{len(informative_positions):,} positions found')
+    log()
+    return informative_positions
+
+
+def get_pileup(read_pair_names, alignments, target_name, target_seq):
     pileup = collections.defaultdict(list)
     read_names = [n + '/1' for n in read_pair_names] + [n + '/2' for n in read_pair_names]
     for name in read_names:
         read_alignments = alignments[name]
         for a in read_alignments:
             if a.ref_name != target_name:
-                continue
-            if not alignment_overlaps_repeats(a, repetitive_regions):
                 continue
             ref_seq = target_seq[a.ref_start:a.ref_end]
             if a.masked_read_seq is None:
@@ -65,15 +96,23 @@ def mask_one_target_sequence(target_name, target_seq, alignments, read_pair_name
                 ref_pos = a.ref_start + i
                 if 'N' not in bases:
                     pileup[ref_pos].append(bases)
+    return pileup
 
+
+def get_mean_non_repeat_depth(pileup, repetitive_regions):
+    non_repeat_depths = []
     for ref_pos in sorted(pileup.keys()):
-        print(ref_pos, ' '.join(pileup[ref_pos]))
+        if ref_pos not in repetitive_regions:
+            non_repeat_depths.append(len(pileup[ref_pos]))
+    mean_depth = statistics.mean(non_repeat_depths)
+    return mean_depth
 
 
 def alignment_overlaps_repeats(a, repetitive_regions):
-    # TODO: return True if this alignment's ref range overlaps any of the positions in the
-    #       repetitive_regions set.
-    return True  # TEMP
+    for i in range(a.ref_start, a.ref_end):
+        if i in repetitive_regions:
+            return True
+    return False
 
 
 def get_read_bases_for_each_target_base(read_seq, ref_seq, cigar):
