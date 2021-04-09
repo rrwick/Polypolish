@@ -11,9 +11,7 @@ details. You should have received a copy of the GNU General Public License along
 If not, see <http://www.gnu.org/licenses/>.
 """
 
-import re
-
-from .alignment import get_multi_alignment_read_names
+from .alignment import get_multi_alignment_read_names, flip_positions
 from .log import log, section_header, explanation
 from .misc import load_fasta
 
@@ -28,10 +26,15 @@ def mask_read_sequences(read_pair_names, alignments, target):
     target_seqs = dict(load_fasta(target))
     multi_alignment_read_names = get_multi_alignment_read_names(read_pair_names, alignments)
 
+    for name in multi_alignment_read_names:
+        for a in alignments[name]:
+            ref_seq = target_seqs[a.ref_name][a.ref_start:a.ref_end]
+            a.add_detailed_alignment_info(ref_seq)
+
     total_masked_bases = 0
     for name in multi_alignment_read_names:
         read_alignments = alignments[name]
-        mask_positions = get_mask_positions(read_alignments, target_seqs)
+        mask_positions = get_mask_positions(read_alignments)
         if mask_positions:
             for a in read_alignments:
                 create_masked_read_seq(a, mask_positions)
@@ -41,26 +44,22 @@ def mask_read_sequences(read_pair_names, alignments, target):
     log()
 
 
-def get_mask_positions(read_alignments, target_seqs):
+def get_mask_positions(read_alignments):
     """
     Returns a list of positions in the read to mask. Positions are given in terms of the forward
     strand.
     """
     mask_positions = None
     for a in read_alignments:
-        ref_seq = target_seqs[a.ref_name][a.ref_start:a.ref_end]
-        aligned_read_seq, aligned_ref_seq, diffs, read_mismatches = \
-            align_seqs_with_cigar(a.read_seq, ref_seq, a.cigar)
-
-        # Sanity check: if there are too many mismatches, something has gone terribly wrong!
-        assert len(read_mismatches) < len(a.read_seq) // 2
-
         if a.is_on_reverse_strand():
-            read_mismatches = flip_positions(read_mismatches, len(a.read_seq))
-        if mask_positions is None:
-            mask_positions = read_mismatches
+            read_errors = flip_positions(a.read_error_positions, len(a.read_seq))
         else:
-            mask_positions &= read_mismatches
+            read_errors = a.read_error_positions
+
+        if mask_positions is None:
+            mask_positions = read_errors
+        else:
+            mask_positions &= read_errors
     return mask_positions
 
 
@@ -75,65 +74,3 @@ def create_masked_read_seq(alignment, mask_positions):
     for i in mask_positions:
         alignment.masked_read_seq = \
             alignment.masked_read_seq[:i] + 'N' + alignment.masked_read_seq[i + 1:]
-
-
-def flip_positions(positions, seq_length):
-    """
-    This function takes a set of positions (0-based) and flips them to the reverse strand positions.
-    """
-    flipped_positions = set()
-    for p in positions:
-        flipped_positions.add(seq_length - p - 1)
-    return flipped_positions
-
-
-def align_seqs_with_cigar(seq_1, seq_2, cigar):
-    expanded_cigar = get_expanded_cigar(cigar)
-    i, j = 0, 0
-    aligned_seq_1, aligned_seq_2, differences = [], [], []
-    seq_1_mismatches = set()
-    for c in expanded_cigar:
-        if c == 'M':
-            b_1 = seq_1[i]
-            b_2 = seq_2[j]
-            if b_1 == b_2:
-                diff = ' '
-            else:
-                diff = '*'
-                seq_1_mismatches.add(i)
-            i += 1
-            j += 1
-        elif c == 'I':
-            b_1 = seq_1[i]
-            b_2 = '-'
-            diff = '*'
-            i += 1
-        elif c == 'D':
-            b_1 = '-'
-            b_2 = seq_2[j]
-            diff = '*'
-            j += 1
-        else:
-            assert False
-        aligned_seq_1.append(b_1)
-        aligned_seq_2.append(b_2)
-        differences.append(diff)
-    assert i == len(seq_1)
-    assert j == len(seq_2)
-    aligned_seq_1 = ''.join(aligned_seq_1)
-    aligned_seq_2 = ''.join(aligned_seq_2)
-    differences = ''.join(differences)
-    assert aligned_seq_1.replace('-', '') == seq_1
-    assert aligned_seq_2.replace('-', '') == seq_2
-    return aligned_seq_1, aligned_seq_2, differences, seq_1_mismatches
-
-
-def get_expanded_cigar(cigar):
-    expanded_cigar = []
-    cigar_parts = re.findall(r'\d+[MIDNSHP=X]', cigar)
-    for p in cigar_parts:
-        size = int(p[:-1])
-        letter = p[-1]
-        assert letter == 'M' or letter == 'D' or letter == 'I'  # no clips in end-to-end alignment
-        expanded_cigar.append(letter * size)
-    return ''.join(expanded_cigar)

@@ -11,6 +11,7 @@ details. You should have received a copy of the GNU General Public License along
 If not, see <http://www.gnu.org/licenses/>.
 """
 
+import collections
 import pathlib
 import re
 import tempfile
@@ -232,6 +233,19 @@ class Alignment(object):
                 self.nm_tag = int(p[5:])
         assert self.nm_tag is not None
 
+        # The following pieces of information are left empty for the time being. They will be
+        # filled in later as needed for multi-alignment reads.
+        self.aligned_read_seq = None
+        self.aligned_ref_seq = None
+        self.diffs = None
+        self.read_error_positions = None
+        self.ref_error_positions = None
+        self.read_positions_to_ref_positions = None
+        self.ref_positions_to_read_positions = None
+
+    def __repr__(self):
+        return f'{self.read_name}:{self.ref_name}:{self.ref_start}-{self.ref_end}'
+
     def has_flag(self, flag: int):
         return bool(self.flags & flag)
 
@@ -255,8 +269,84 @@ class Alignment(object):
         first_part, last_part = cigar_parts[0], cigar_parts[-1]
         return first_part[-1] == 'M' and last_part[-1] == 'M'
 
-    def __repr__(self):
-        return f'{self.read_name}:{self.ref_name}:{self.ref_start}-{self.ref_end}'
+    def add_detailed_alignment_info(self, ref_seq):
+        """
+        This function adds a lot of extra info to the alignment: aligned versions of the sequences,
+        positions of errors in both sequences and the relationship between the positions in the
+        sequences.
+
+        All read positions are stored in terms of the reference-aligned strand. E.g. if a read
+        aligned to the reverse strand of the reference, then a position of 0 according to this
+        function actually corresponds to the end of the original read sequence.
+
+        All reference positions are stored in terms of the entire reference sequence, not just the
+        aligned part. E.g. if an alignment starts at position 431 of the reference, then the first
+        position of the alignment according to this function is 431 (not 0).
+        """
+        self.aligned_read_seq, self.aligned_ref_seq, self.diffs = [], [], []
+        self.read_error_positions, self.ref_error_positions = set(), set()
+        self.read_positions_to_ref_positions = collections.defaultdict(set)
+        self.ref_positions_to_read_positions = collections.defaultdict(set)
+
+        expanded_cigar = get_expanded_cigar(self.cigar)
+        i, j = 0, 0
+        for c in expanded_cigar:
+            if c == 'M':
+                b_1 = self.read_seq[i]
+                b_2 = ref_seq[j]
+                if b_1 == b_2:
+                    diff = ' '
+                else:
+                    diff = '*'
+                    self.read_error_positions.add(i)
+                    self.ref_error_positions.add(j + self.ref_start)
+                self.read_positions_to_ref_positions[i].add(j + self.ref_start)
+                self.ref_positions_to_read_positions[j + self.ref_start].add(i)
+                i += 1
+                j += 1
+            elif c == 'I':
+                b_1 = self.read_seq[i]
+                b_2 = '-'
+                self.read_error_positions.add(i)
+                self.ref_error_positions.add(j + self.ref_start - 1)
+                self.ref_error_positions.add(j + self.ref_start)
+                self.read_positions_to_ref_positions[i].add(j + self.ref_start - 1)
+                self.read_positions_to_ref_positions[i].add(j + self.ref_start)
+                diff = '*'
+                i += 1
+            elif c == 'D':
+                b_1 = '-'
+                b_2 = ref_seq[j]
+                self.read_error_positions.add(i - 1)
+                self.read_error_positions.add(i)
+                self.ref_error_positions.add(j + self.ref_start)
+                self.ref_positions_to_read_positions[j + self.ref_start].add(i - 1)
+                self.ref_positions_to_read_positions[j + self.ref_start].add(i)
+                diff = '*'
+                j += 1
+            else:
+                assert False
+            self.aligned_read_seq.append(b_1)
+            self.aligned_ref_seq.append(b_2)
+            self.diffs.append(diff)
+        assert i == len(self.read_seq)
+        assert j == len(ref_seq)
+        self.aligned_read_seq = ''.join(self.aligned_read_seq)
+        self.aligned_ref_seq = ''.join(self.aligned_ref_seq)
+        self.diffs = ''.join(self.diffs)
+        assert self.aligned_read_seq.replace('-', '') == self.read_seq
+        assert self.aligned_ref_seq.replace('-', '') == ref_seq
+
+        # Convert from dictionary of sets to dictionary of lists.
+        self.read_positions_to_ref_positions = \
+            {read_pos: sorted(ref_pos)
+             for read_pos, ref_pos in self.read_positions_to_ref_positions.items()}
+        self.ref_positions_to_read_positions = \
+            {ref_pos: sorted(read_pos)
+             for ref_pos, read_pos in self.ref_positions_to_read_positions.items()}
+
+        # Sanity check: if there are too many mismatches, something has gone terribly wrong!
+        assert len(self.read_error_positions) < len(self.read_seq) // 2
 
 
 def get_ref_end(ref_start, cigar):
@@ -268,3 +358,24 @@ def get_ref_end(ref_start, cigar):
         if letter == 'M' or letter == 'D' or letter == 'N' or letter == '=' or letter == 'X':
             ref_end += size
     return ref_end
+
+
+def get_expanded_cigar(cigar):
+    expanded_cigar = []
+    cigar_parts = re.findall(r'\d+[MIDNSHP=X]', cigar)
+    for p in cigar_parts:
+        size = int(p[:-1])
+        letter = p[-1]
+        assert letter == 'M' or letter == 'D' or letter == 'I'  # no clips in end-to-end alignment
+        expanded_cigar.append(letter * size)
+    return ''.join(expanded_cigar)
+
+
+def flip_positions(positions, seq_length):
+    """
+    This function takes a set of positions (0-based) and flips them to the reverse strand positions.
+    """
+    flipped_positions = set()
+    for p in positions:
+        flipped_positions.add(seq_length - p - 1)
+    return flipped_positions

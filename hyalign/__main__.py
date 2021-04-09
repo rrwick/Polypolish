@@ -13,6 +13,7 @@ If not, see <http://www.gnu.org/licenses/>.
 """
 
 import argparse
+import random
 import sys
 
 from .alignment import align_reads
@@ -20,7 +21,8 @@ from .help_formatter import MyParser, MyHelpFormatter
 from .insert_size import get_insert_size_distribution, select_alignments_using_insert_size
 from .log import bold
 from .mask_reads import mask_read_sequences
-from .informative_positions import find_informative_positions
+from .informative_positions import find_informative_positions, \
+    select_alignments_using_informative_positions
 from .misc import get_default_thread_count, check_python_version, get_ascii_art
 from .version import __version__
 
@@ -28,6 +30,7 @@ from .version import __version__
 def main():
     check_python_version()
     args = parse_args()
+    random.seed(0)
     alignments, read_pair_names, read_count = \
         align_reads(args.target, args.short1, args.short2, args.threads, args.max_errors)
     insert_size_distribution = get_insert_size_distribution(alignments)
@@ -35,6 +38,8 @@ def main():
                                         read_pair_names, read_count)
     mask_read_sequences(read_pair_names, alignments, args.target)
     informative_positions = find_informative_positions(read_pair_names, alignments, args.target)
+    select_alignments_using_informative_positions(alignments, informative_positions,
+                                                  read_pair_names, read_count)
 
 
 def parse_args():

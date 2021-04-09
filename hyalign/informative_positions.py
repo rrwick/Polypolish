@@ -13,10 +13,9 @@ If not, see <http://www.gnu.org/licenses/>.
 
 import collections
 import math
-import re
 import statistics
 
-from .alignment import get_multi_alignment_read_names
+from .alignment import get_multi_alignment_read_names, get_expanded_cigar
 from .log import log, section_header, explanation
 from .misc import load_fasta
 
@@ -138,12 +137,25 @@ def get_read_bases_for_each_target_base(read_seq, ref_seq, cigar):
     return read_bases
 
 
-def get_expanded_cigar(cigar):
-    expanded_cigar = []
-    cigar_parts = re.findall(r'\d+[MIDNSHP=X]', cigar)
-    for p in cigar_parts:
-        size = int(p[:-1])
-        letter = p[-1]
-        assert letter == 'M' or letter == 'D' or letter == 'I'  # no clips in end-to-end alignment
-        expanded_cigar.append(letter * size)
-    return ''.join(expanded_cigar)
+def select_alignments_using_informative_positions(alignments, informative_positions,
+                                                  read_pair_names, read_count):
+    section_header('Selecting alignments informative target positions')
+    explanation('As a final step, Hyalign now filters alignments using informative positions in '
+                'the target sequence.')
+    multi_alignment_read_names = get_multi_alignment_read_names(read_pair_names, alignments)
+    for name in multi_alignment_read_names:
+        read_alignments = alignments[name]
+        best_alignment = choose_best_alignment_one_read(read_alignments, informative_positions)
+        alignments[name] = [best_alignment]
+
+
+def choose_best_alignment_one_read(read_alignments, informative_target_positions):
+    """
+    This function chooses the best alignment for a multi-alignment read. Informative positions are
+    used to mask the read sequence, if available. If a tie occurs, then a best position is chosen
+    at random.
+    """
+    informative_read_positions = set()
+    for a in read_alignments:
+        pass
+
