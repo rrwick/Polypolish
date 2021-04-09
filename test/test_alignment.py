@@ -1,25 +1,25 @@
 """
-This module contains some tests for Hyalign. To run them, execute `pytest` from the root Hyalign
+This module contains some tests for Poligner. To run them, execute `pytest` from the root Poligner
 directory.
 
 Copyright 2021 Ryan Wick (rrwick@gmail.com)
-https://github.com/rrwick/Hyalign
+https://github.com/rrwick/Poligner
 
-This file is part of Hyalign. Hyalign is free software: you can redistribute it and/or modify
+This file is part of Poligner. Poligner is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by the Free Software Foundation,
-either version 3 of the License, or (at your option) any later version. Hyalign is distributed
+either version 3 of the License, or (at your option) any later version. Poligner is distributed
 in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more
-details. You should have received a copy of the GNU General Public License along with Hyalign.
+details. You should have received a copy of the GNU General Public License along with Poligner.
 If not, see <http://www.gnu.org/licenses/>.
 """
 
-import hyalign.alignment
+import poligner.alignment
 
 
 def test_flags_1():
     flags = 345
-    a = hyalign.alignment.Alignment(f'read\t{flags}\tref\t0\t0\t4M\t*\t0\t0\tACGT\tAAAA\tNM:i:0')
+    a = poligner.alignment.Alignment(f'read\t{flags}\tref\t0\t0\t4M\t*\t0\t0\tACGT\tAAAA\tNM:i:0')
     assert a.has_flag(1)
     assert not a.has_flag(2)
     assert not a.has_flag(4)
@@ -36,7 +36,7 @@ def test_flags_1():
 
 def test_flags_2():
     flags = 1044
-    a = hyalign.alignment.Alignment(f'read\t{flags}\tref\t0\t0\t4M\t*\t0\t0\tACGT\tAAAA\tNM:i:0')
+    a = poligner.alignment.Alignment(f'read\t{flags}\tref\t0\t0\t4M\t*\t0\t0\tACGT\tAAAA\tNM:i:0')
     assert not a.has_flag(1)
     assert not a.has_flag(2)
     assert a.has_flag(4)
@@ -52,11 +52,11 @@ def test_flags_2():
 
 
 def test_ref_end_1():
-    assert hyalign.alignment.get_ref_end(100, '100M') == 200
+    assert poligner.alignment.get_ref_end(100, '100M') == 200
 
 
 def test_ref_end_2():
-    assert hyalign.alignment.get_ref_end(1000, '10M3D8M4I10M') == 1031
+    assert poligner.alignment.get_ref_end(1000, '10M3D8M4I10M') == 1031
 
 
 def prep_for_detailed_alignment_info():
@@ -79,8 +79,8 @@ def prep_for_detailed_alignment_info():
     ref_seq = 'CTCTATGACGAGACGAACGTCGCTAACGAGCGACCTATAGCGTTTAAAATA'
     read_qual = 'A' * len(read_seq)
 
-    a = hyalign.alignment.Alignment(f'read\t0\tref\t{ref_start+1}\t0\t{cigar}\t*\t0\t0\t'
-                                    f'{read_seq}\t{read_qual}\tNM:i:0')
+    a = poligner.alignment.Alignment(f'read\t0\tref\t{ref_start+1}\t0\t{cigar}\t*\t0\t0\t'
+                                     f'{read_seq}\t{read_qual}\tNM:i:0')
     a.add_detailed_alignment_info(ref_seq)
     return a
 
@@ -142,7 +142,7 @@ def test_flip_positions_1():
     0123456789
     9876543210
     """
-    assert hyalign.alignment.flip_positions({0, 1, 2}, 10) == {7, 8, 9}
+    assert poligner.alignment.flip_positions({0, 1, 2}, 10) == {7, 8, 9}
 
 
 def test_flip_positions_2():
@@ -151,7 +151,7 @@ def test_flip_positions_2():
     0123456789
     9876543210
     """
-    assert hyalign.alignment.flip_positions({1, 5, 6, 8}, 10) == {1, 3, 4, 8}
+    assert poligner.alignment.flip_positions({1, 5, 6, 8}, 10) == {1, 3, 4, 8}
 
 
 def test_flip_positions_3():
@@ -160,4 +160,4 @@ def test_flip_positions_3():
     012345678
     876543210
     """
-    assert hyalign.alignment.flip_positions({1, 5, 6, 8}, 9) == {0, 2, 3, 7}
+    assert poligner.alignment.flip_positions({1, 5, 6, 8}, 9) == {0, 2, 3, 7}

@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """
 Copyright 2021 Ryan Wick (rrwick@gmail.com)
-https://github.com/rrwick/Hyalign
+https://github.com/rrwick/Poligner
 
-This file is part of Hyalign. Hyalign is free software: you can redistribute it and/or modify
+This file is part of Poligner. Poligner is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by the Free Software Foundation,
-either version 3 of the License, or (at your option) any later version. Hyalign is distributed
+either version 3 of the License, or (at your option) any later version. Poligner is distributed
 in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more
-details. You should have received a copy of the GNU General Public License along with Hyalign.
+details. You should have received a copy of the GNU General Public License along with Poligner.
 If not, see <http://www.gnu.org/licenses/>.
 """
 
@@ -44,7 +44,7 @@ def main():
 
 def parse_args():
     description = 'R|' + get_ascii_art() + '\n' + \
-                  bold('Hyalign: a tool for aligning short reads to a long-read assembly')
+                  bold('Poligner: a tool for aligning short reads to a long-read assembly')
     parser = MyParser(description=description, formatter_class=MyHelpFormatter, add_help=False)
 
     required_args = parser.add_argument_group('Required arguments')
@@ -66,7 +66,7 @@ def parse_args():
     help_args = parser.add_argument_group('Help')
     help_args.add_argument('-h', '--help', action='help', default=argparse.SUPPRESS,
                            help='Show this help message and exit')
-    help_args.add_argument('--version', action='version', version='Hyalign v' + __version__,
+    help_args.add_argument('--version', action='version', version='Poligner v' + __version__,
                            help="Show program's version number and exit")
 
     # If no arguments were used, print the base-level help which lists possible commands.

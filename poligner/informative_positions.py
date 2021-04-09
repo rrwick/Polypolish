@@ -1,13 +1,13 @@
 """
 Copyright 2021 Ryan Wick (rrwick@gmail.com)
-https://github.com/rrwick/Hyalign
+https://github.com/rrwick/Poligner
 
-This file is part of Hyalign. Hyalign is free software: you can redistribute it and/or modify
+This file is part of Poligner. Poligner is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by the Free Software Foundation,
-either version 3 of the License, or (at your option) any later version. Hyalign is distributed
+either version 3 of the License, or (at your option) any later version. Poligner is distributed
 in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more
-details. You should have received a copy of the GNU General Public License along with Hyalign.
+details. You should have received a copy of the GNU General Public License along with Poligner.
 If not, see <http://www.gnu.org/licenses/>.
 """
 
@@ -22,7 +22,7 @@ from .misc import load_fasta
 
 def find_informative_positions(read_pair_names, alignments, target):
     section_header('Finding informative target positions')
-    explanation('Hyalign now finds bases in the target sequence which have significant ambiguity. '
+    explanation('Poligner now finds bases in the target sequence which have significant ambiguity. '
                 'E.g. if a target base is "A" and all read alignments agree with that base, then '
                 'that position is not informative. But if the read alignments show ambiguity '
                 '(e.g. some say "A" and some say "T"), then that position is informative.')
@@ -140,7 +140,7 @@ def get_read_bases_for_each_target_base(read_seq, ref_seq, cigar):
 def select_alignments_using_informative_positions(alignments, informative_positions,
                                                   read_pair_names, read_count):
     section_header('Selecting alignments informative target positions')
-    explanation('As a final step, Hyalign now filters alignments using informative positions in '
+    explanation('As a final step, Poligner now filters alignments using informative positions in '
                 'the target sequence.')
     multi_alignment_read_names = get_multi_alignment_read_names(read_pair_names, alignments)
     for name in multi_alignment_read_names:

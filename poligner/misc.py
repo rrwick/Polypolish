@@ -1,13 +1,13 @@
 """
 Copyright 2021 Ryan Wick (rrwick@gmail.com)
-https://github.com/rrwick/Hyalign
+https://github.com/rrwick/Poligner
 
-This file is part of Hyalign. Hyalign is free software: you can redistribute it and/or modify
+This file is part of Poligner. Poligner is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by the Free Software Foundation,
-either version 3 of the License, or (at your option) any later version. Hyalign is distributed
+either version 3 of the License, or (at your option) any later version. Poligner is distributed
 in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more
-details. You should have received a copy of the GNU General Public License along with Hyalign.
+details. You should have received a copy of the GNU General Public License along with Poligner.
 If not, see <http://www.gnu.org/licenses/>.
 """
 
@@ -245,14 +245,14 @@ def check_input_reads(filename, file_size_only=False):
 
 
 def get_ascii_art():
-    ascii_art = (bold_yellow(r" _    _                _  _") + '\n' +
-                 bold_yellow(r"| |  | |              | |(_)") + '\n' +
-                 bold_yellow(r"| |__| | _   _   __ _ | | _   __ _  _ __") + '\n' +
-                 bold_yellow(r"|  __  || | | | / _` || || | / _` || '_ \ ") + '\n' +
-                 bold_yellow(r"| |  | || |_| || (_| || || || (_| || | | |") + '\n' +
-                 bold_yellow(r"|_|  |_| \__, | \__,_||_||_| \__, ||_| |_|") + '\n' +
-                 bold_yellow(r"          __/ |               __/ |") + '\n' +
-                 bold_yellow(r"         |___/               |___/") + '\n')
+    ascii_art = (bold_yellow(r" _____        _  _") + '\n' +
+                 bold_yellow(r"|  __ \      | |(_)") + '\n' +
+                 bold_yellow(r"| |__) |___  | | _   __ _  _ __    ___  _ __") + '\n' +
+                 bold_yellow(r"|  ___// _ \ | || | / _` || '_ \  / _ \| '__|") + '\n' +
+                 bold_yellow(r"| |   | (_) || || || (_| || | | ||  __/| |") + '\n' +
+                 bold_yellow(r"|_|    \___/ |_||_| \__, ||_| |_| \___||_|") + '\n' +
+                 bold_yellow(r"                     __/ |") + '\n' +
+                 bold_yellow(r"                    |___/") + '\n')
     return ascii_art
 
 
