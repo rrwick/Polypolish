@@ -15,8 +15,8 @@ import collections
 import math
 import statistics
 
-from .alignment import get_multi_alignment_read_names, get_expanded_cigar
-from .log import log, section_header, explanation
+from .alignment import get_multi_alignment_read_names, get_expanded_cigar, print_alignment_info
+from .log import log, section_header, explanation, bold_yellow
 from .misc import load_fasta
 
 
@@ -65,6 +65,7 @@ def find_positions(target_name, target_seq, alignments, read_pair_names, repetit
     log('  Finding informative positions: ', end='')
     for i in sorted(pileup.keys()):
         if i in repetitive_regions:
+            # pileup_str = f'{i}  {" ".join(sorted(pileup[i]))}'  # DEBUGGING
             counts = [pileup[i].count(b) for b in set(pileup[i])]
             if len(counts) == 1:
                 second_best_count = 0
@@ -72,6 +73,9 @@ def find_positions(target_name, target_seq, alignments, read_pair_names, repetit
                 second_best_count = sorted(counts)[-2]
             if second_best_count >= non_ref_base_threshold:
                 informative_positions.add(i)
+            #     log(bold_yellow(pileup_str))  # DEBUGGING
+            # else:  # DEBUGGING
+            #     log(pileup_str)  # DEBUGGING
     log(f'{len(informative_positions):,} positions found')
     log()
     return informative_positions
@@ -140,22 +144,54 @@ def get_read_bases_for_each_target_base(read_seq, ref_seq, cigar):
 def select_alignments_using_informative_positions(alignments, informative_positions,
                                                   read_pair_names, read_count):
     section_header('Selecting alignments informative target positions')
-    explanation('As a final step, Poligner now filters alignments using informative positions in '
+    explanation('Poligner now filters alignments using informative positions in '
                 'the target sequence.')
     multi_alignment_read_names = get_multi_alignment_read_names(read_pair_names, alignments)
     for name in multi_alignment_read_names:
-        read_alignments = alignments[name]
-        best_alignment = choose_best_alignment_one_read(read_alignments, informative_positions)
-        alignments[name] = [best_alignment]
+        best_alignments = choose_best_alignments_one_read(alignments[name], informative_positions)
+        alignments[name] = best_alignments
+    print_alignment_info(alignments, read_count, read_pair_names)
 
 
-def choose_best_alignment_one_read(read_alignments, informative_target_positions):
+def choose_best_alignments_one_read(read_alignments, informative_target_positions):
     """
     This function chooses the best alignment for a multi-alignment read. Informative positions are
     used to mask the read sequence, if available. If a tie occurs, then a best position is chosen
     at random.
     """
     informative_read_positions = set()
+    read_length = None
     for a in read_alignments:
-        pass
+        # a.print_detailed_alignment_info()  # DEBUGGING
+        for i in range(a.ref_start, a.ref_end):
+            if i in informative_target_positions[a.ref_name]:
+                for read_pos in a.ref_positions_to_read_positions[i]:
+                    informative_read_positions.add(read_pos)
+        #             log(f'{i}  {read_pos}')  # DEBUGGING
+        # log()  # DEBUGGING
+        if read_length is None:
+            read_length = len(a.read_seq)
+        else:
+            assert read_length == len(a.read_seq)
 
+    # If there were no informative positions for a read, consider them all to be informative.
+    if not informative_read_positions:
+        for i in range(read_length):
+            informative_read_positions.add(i)
+    # log(f'{informative_read_positions}')  # DEBUGGING
+
+    best_error_count = None
+    best_alignments = []
+    for a in read_alignments:
+        error_count = 0
+        for i in a.read_error_positions:
+            if i in informative_read_positions:
+                error_count += 1
+        if best_error_count is None or error_count < best_error_count:
+            best_error_count = error_count
+            best_alignments = [a]
+        elif error_count == best_error_count:
+            best_alignments.append(a)
+    # log(f'{len(best_alignments)} best alignments\n\n\n\n\n')  # DEBUGGING
+
+    return best_alignments

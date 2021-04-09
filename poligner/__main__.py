@@ -18,7 +18,8 @@ import sys
 
 from .alignment import align_reads
 from .help_formatter import MyParser, MyHelpFormatter
-from .insert_size import get_insert_size_distribution, select_alignments_using_insert_size
+from .insert_size import get_insert_size_distribution, select_alignments_using_insert_size, \
+    final_alignment_selection
 from .log import bold
 from .mask_reads import mask_read_sequences
 from .informative_positions import find_informative_positions, \
@@ -40,6 +41,7 @@ def main():
     informative_positions = find_informative_positions(read_pair_names, alignments, args.target)
     select_alignments_using_informative_positions(alignments, informative_positions,
                                                   read_pair_names, read_count)
+    final_alignment_selection(alignments, insert_size_distribution, read_pair_names, read_count)
 
 
 def parse_args():

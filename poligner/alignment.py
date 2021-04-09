@@ -348,6 +348,15 @@ class Alignment(object):
         # Sanity check: if there are too many mismatches, something has gone terribly wrong!
         assert len(self.read_error_positions) < len(self.read_seq) // 2
 
+    def print_detailed_alignment_info(self):
+        """
+        For debug purposes.
+        """
+        log(self)
+        log(self.aligned_read_seq)
+        log(self.aligned_ref_seq)
+        log(self.diffs)
+
 
 def get_ref_end(ref_start, cigar):
     ref_end = ref_start
