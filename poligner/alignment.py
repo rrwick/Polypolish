@@ -33,11 +33,12 @@ def align_reads(target, short1, short2, threads, max_errors):
         log()
         read_filename, read_count, read_pair_names = \
             combine_reads_into_one_file(short1, short2,temp_dir)
-        alignments = align_with_minimap2(read_filename, read_pair_names, target, threads)
+        alignments, header_lines = \
+            align_with_minimap2(read_filename, read_pair_names, target, threads)
         add_secondary_read_seqs(alignments, read_pair_names)
         filter_alignments(alignments, read_pair_names, max_errors)
         print_alignment_info(alignments, read_count, read_pair_names)
-        return alignments, read_pair_names, read_count
+        return alignments, read_pair_names, read_count, header_lines
 
 
 def combine_reads_into_one_file(short1, short2, temp_dir):
@@ -73,7 +74,7 @@ def combine_reads_into_one_file(short1, short2, temp_dir):
     log(f'  {total_count:,} reads')
     log(f'  {read_filename}')
     log()
-    return read_filename, total_count, first_names
+    return read_filename, total_count, sorted(first_names)
 
 
 def align_with_minimap2(reads, read_pair_names, target, threads):
@@ -83,12 +84,14 @@ def align_with_minimap2(reads, read_pair_names, target, threads):
     log('  ' + ' '.join(command))
     stdout, stderr, return_code = run_command(command)
     alignments = {}
+    header_lines = []
     alignment_count = 0
     for name in read_pair_names:
         alignments[name + '/1'] = []
         alignments[name + '/2'] = []
     for line in stdout.splitlines():
         if line.startswith('@'):
+            header_lines.append(line)
             continue
         alignment = Alignment(line)
         if alignment.is_aligned():
@@ -96,7 +99,7 @@ def align_with_minimap2(reads, read_pair_names, target, threads):
             alignment_count += 1
     log(f'  {alignment_count:,} total alignments')
     log()
-    return alignments
+    return alignments, header_lines
 
 
 def add_secondary_read_seqs(alignments, read_pair_names):
@@ -197,7 +200,7 @@ def get_multi_alignment_read_names(read_pair_names, alignments):
     alignment.
     """
     multi_alignment_read_names = []
-    for name in sorted(read_pair_names):
+    for name in read_pair_names:
         name_1, name_2 = name + '/1', name + '/2'
         alignments_1, alignments_2 = alignments[name_1], alignments[name_2]
         if len(alignments_1) > 1:
@@ -210,25 +213,24 @@ def get_multi_alignment_read_names(read_pair_names, alignments):
 class Alignment(object):
 
     def __init__(self, sam_line):
-        self.sam_line = sam_line.strip()
-        parts = self.sam_line.split('\t')
-        if len(parts) < 11:
+        sam_line = sam_line.strip()
+        self.parts = sam_line.split('\t')
+        if len(self.parts) < 11:
             quit_with_error('\nError: alignment file does not seem to be in SAM format')
 
-        self.sam_line = sam_line
-        self.read_name = parts[0]
-        self.flags = int(parts[1])
-        self.ref_name = parts[2]
-        self.ref_start = int(parts[3]) - 1  # switch from SAM's 1-based to Python's 0-based
-        self.map_q = int(parts[4])
-        self.cigar = parts[5]
+        self.read_name = self.parts[0]
+        self.flags = int(self.parts[1])
+        self.ref_name = self.parts[2]
+        self.ref_start = int(self.parts[3]) - 1  # switch from SAM's 1-based to Python's 0-based
+        self.map_q = int(self.parts[4])
+        self.cigar = self.parts[5]
         self.ref_end = get_ref_end(self.ref_start, self.cigar)
-        self.read_seq = parts[9]
-        self.read_qual = parts[10]
+        self.read_seq = self.parts[9]
+        self.read_qual = self.parts[10]
         self.masked_read_seq = None
 
         self.nm_tag = None
-        for p in parts:
+        for p in self.parts:
             if p.startswith('NM:i:'):
                 self.nm_tag = int(p[5:])
         assert self.nm_tag is not None
@@ -244,7 +246,7 @@ class Alignment(object):
         self.ref_positions_to_read_positions = None
 
     def __repr__(self):
-        return f'{self.read_name}:{self.ref_name}:{self.ref_start}-{self.ref_end}'
+        return f'{self.read_name}:{self.ref_name}:{self.ref_start}-{self.ref_end}:{self.nm_tag}'
 
     def has_flag(self, flag: int):
         return bool(self.flags & flag)
@@ -260,6 +262,13 @@ class Alignment(object):
 
     def is_on_forward_strand(self):
         return not self.has_flag(16)
+
+    def set_flags(self, new_flags):
+        self.flags = new_flags
+        self.parts[1] = str(new_flags)
+
+    def get_sam_line(self):
+        return '\t'.join(self.parts)
 
     def has_no_indels(self):
         return self.cigar.endswith('M') and self.cigar[:-1].isdigit()
@@ -388,3 +397,17 @@ def flip_positions(positions, seq_length):
     for p in positions:
         flipped_positions.add(seq_length - p - 1)
     return flipped_positions
+
+
+def output_alignments_to_stdout(alignments, read_pair_names, header_lines):
+    for line in header_lines:
+        print(line)
+    for name in read_pair_names:
+        name_1, name_2 = name + '/1', name + '/2'
+        alignments_1, alignments_2 = alignments[name_1], alignments[name_2]
+        if alignments_1:
+            assert len(alignments_1) == 1
+            print(alignments_1[0].get_sam_line())
+        if alignments_2:
+            assert len(alignments_2) == 1
+            print(alignments_2[0].get_sam_line())

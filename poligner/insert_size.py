@@ -11,6 +11,8 @@ details. You should have received a copy of the GNU General Public License along
 If not, see <http://www.gnu.org/licenses/>.
 """
 
+import random
+
 from .alignment import print_alignment_info
 from .log import log, section_header, explanation
 from .misc import get_percentile_sorted
@@ -83,7 +85,7 @@ def select_alignments_using_insert_size(alignments, distribution, read_pair_name
                 'with multiple possible combinations, Poligner will discard any alignments that '
                 'do not appear to be part of a combination with a valid insert size.')
 
-    for name in sorted(read_pair_names):
+    for name in read_pair_names:
         name_1, name_2 = name + '/1', name + '/2'
         alignments_1, alignments_2 = alignments[name_1], alignments[name_2]
         count_1, count_2 = len(alignments_1), len(alignments_2)
@@ -140,10 +142,7 @@ def score_insert_size(insert_size, distribution):
 
 
 def final_alignment_selection(alignments, distribution, read_pair_names, read_count):
-    """
-    This function modifies the alignments dictionary, removing alignments that are not part of a
-    pair with a good insert size.
-    """
+
     section_header('Final alignment selection using insert size')
     explanation('After the last round of selection, all reads with multiple alignments have a '
                 'tie between equally good alignments. Poligner now makes a final selection, '
@@ -151,19 +150,71 @@ def final_alignment_selection(alignments, distribution, read_pair_names, read_co
                 'is made using insert size, if possible. Otherwise the kept alignment is chosen '
                 'at random.')
 
-    for name in sorted(read_pair_names):
+    for name in read_pair_names:
         name_1, name_2 = name + '/1', name + '/2'
         alignments_1, alignments_2 = alignments[name_1], alignments[name_2]
         count_1, count_2 = len(alignments_1), len(alignments_2)
-        if count_1 >= 1 and count_2 >= 1 and count_1+count_2 >= 3:
+
+        if count_1 <= 1 and count_2 <= 1:
             pass
-            # TODO
-            # TODO
-            # TODO
-            # TODO
-            # TODO
-            # TODO
-            # TODO
-            # TODO
+
+        elif count_1 > 1 and count_2 == 0:
+            alignments[name_1] = [random.choice(alignments[name_1])]
+
+        elif count_1 == 0 and count_2 > 1:
+            alignments[name_2] = [random.choice(alignments[name_2])]
+
+        elif count_1 >= 1 and count_2 >= 1 and count_1+count_2 >= 3:
+            all_scores = []
+            for a_1 in alignments_1:
+                for a_2 in alignments_2:
+                    insert_size = get_insert_size(a_1, a_2)
+                    all_scores.append(score_insert_size(insert_size, distribution))
+            max_score = max(all_scores)
+            good_pairs = []
+            for a_1 in alignments_1:
+                for a_2 in alignments_2:
+                    insert_size = get_insert_size(a_1, a_2)
+                    if score_insert_size(insert_size, distribution) == max_score:
+                        good_pairs.append((a_1, a_2))
+            assert len(good_pairs) >= 1
+            a_1, a_2 = random.choice(good_pairs)
+            alignments[name_1] = [a_1]
+            alignments[name_2] = [a_2]
+
+        else:
+            assert False
 
     print_alignment_info(alignments, read_count, read_pair_names)
+
+
+def set_sam_flags(alignments, read_pair_names, insert_size_distribution):
+    read_names = [n + '/1' for n in read_pair_names] + [n + '/2' for n in read_pair_names]
+    for name in read_names:
+        read_alignments = alignments[name]
+        if not read_alignments:
+            continue
+        assert len(read_alignments) == 1
+        a = read_alignments[0]
+        new_flags = 1                                             # 1 = read paired
+        if name.endswith('/1'):
+            pair_alignments = alignments[name[:-2] + '/2']
+            new_flags += 64                                       # 64 = first in pair
+        elif name.endswith('/2'):
+            pair_alignments = alignments[name[:-2] + '/1']
+            new_flags += 128                                      # 128 = second in pair
+        else:
+            assert False
+        if a.is_on_reverse_strand():
+            new_flags += 16                                       # 16 = read reverse strand
+        if not pair_alignments:
+            new_flags += 8                                        # 8 = mate unmapped
+        else:
+            assert len(pair_alignments) == 1
+            pair_a = pair_alignments[0]
+            insert_size = get_insert_size(a, pair_a)
+            if score_insert_size(insert_size, insert_size_distribution) >= 3:
+                new_flags += 2                                    # 2 = read mapped in proper pair
+            if pair_a.is_on_reverse_strand():
+                new_flags += 32                                   # 32 = mate reverse strand
+        a.set_flags(new_flags)
