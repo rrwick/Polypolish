@@ -188,15 +188,19 @@ def final_alignment_selection(alignments, distribution, read_pair_names, read_co
     print_alignment_info(alignments, read_count, read_pair_names)
 
 
-def set_sam_flags(alignments, read_pair_names, insert_size_distribution):
+def set_sam_flags(alignments, unaligned, read_pair_names, insert_size_distribution):
+    for a in unaligned.values():
+        a.make_unaligned()
     read_names = [n + '/1' for n in read_pair_names] + [n + '/2' for n in read_pair_names]
     for name in read_names:
-        read_alignments = alignments[name]
-        if not read_alignments:
-            continue
-        assert len(read_alignments) == 1
-        a = read_alignments[0]
+        if not alignments[name]:
+            a = unaligned[name]
+        else:
+            assert len(alignments[name]) == 1
+            a = alignments[name][0]
         new_flags = 1                                             # 1 = read paired
+        if not a.is_aligned():
+            new_flags += 4                                        # 4 = read unmapped
         if name.endswith('/1'):
             pair_alignments = alignments[name[:-2] + '/2']
             new_flags += 64                                       # 64 = first in pair
@@ -210,7 +214,6 @@ def set_sam_flags(alignments, read_pair_names, insert_size_distribution):
         if not pair_alignments:
             new_flags += 8                                        # 8 = mate unmapped
         else:
-            assert len(pair_alignments) == 1
             pair_a = pair_alignments[0]
             insert_size = get_insert_size(a, pair_a)
             if score_insert_size(insert_size, insert_size_distribution) >= 3:

@@ -16,7 +16,8 @@ import argparse
 import random
 import sys
 
-from .alignment import align_reads, output_alignments_to_stdout
+from .alignment import align_reads, output_alignments_to_stdout, verify_no_multi_alignments, \
+    fix_sam_pairing
 from .help_formatter import MyParser, MyHelpFormatter
 from .insert_size import get_insert_size_distribution, select_alignments_using_insert_size, \
     final_alignment_selection, set_sam_flags
@@ -32,7 +33,7 @@ def main():
     check_python_version()
     args = parse_args()
     random.seed(0)
-    alignments, read_pair_names, read_count, header_lines = \
+    alignments, read_pair_names, read_count, header_lines, unaligned = \
         align_reads(args.target, args.short1, args.short2, args.threads, args.max_errors)
     insert_size_distribution = get_insert_size_distribution(alignments)
     select_alignments_using_insert_size(alignments, insert_size_distribution,
@@ -42,8 +43,10 @@ def main():
     select_alignments_using_informative_positions(alignments, informative_positions,
                                                   read_pair_names, read_count)
     final_alignment_selection(alignments, insert_size_distribution, read_pair_names, read_count)
-    set_sam_flags(alignments, read_pair_names, insert_size_distribution)
-    output_alignments_to_stdout(alignments, read_pair_names, header_lines)
+    verify_no_multi_alignments(alignments, read_pair_names)
+    set_sam_flags(alignments, unaligned, read_pair_names, insert_size_distribution)
+    fix_sam_pairing(alignments, unaligned, read_pair_names)
+    output_alignments_to_stdout(alignments, read_pair_names, header_lines, unaligned)
 
 
 def parse_args():

@@ -173,11 +173,6 @@ def choose_best_alignments_one_read(read_alignments, informative_target_position
             read_length = len(a.read_seq)
         else:
             assert read_length == len(a.read_seq)
-
-    # If there were no informative positions for a read, consider them all to be informative.
-    if not informative_read_positions:
-        for i in range(read_length):
-            informative_read_positions.add(i)
     # log(f'{informative_read_positions}')  # DEBUGGING
 
     best_error_count = None

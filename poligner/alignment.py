@@ -33,12 +33,12 @@ def align_reads(target, short1, short2, threads, max_errors):
         log()
         read_filename, read_count, read_pair_names = \
             combine_reads_into_one_file(short1, short2,temp_dir)
-        alignments, header_lines = \
+        alignments, header_lines, unaligned = \
             align_with_minimap2(read_filename, read_pair_names, target, threads)
         add_secondary_read_seqs(alignments, read_pair_names)
-        filter_alignments(alignments, read_pair_names, max_errors)
+        filter_alignments(alignments, read_pair_names, max_errors, unaligned)
         print_alignment_info(alignments, read_count, read_pair_names)
-        return alignments, read_pair_names, read_count, header_lines
+        return alignments, read_pair_names, read_count, header_lines, unaligned
 
 
 def combine_reads_into_one_file(short1, short2, temp_dir):
@@ -83,7 +83,7 @@ def align_with_minimap2(reads, read_pair_names, target, threads):
                '-t', str(threads), target, reads]
     log('  ' + ' '.join(command))
     stdout, stderr, return_code = run_command(command)
-    alignments = {}
+    alignments, unaligned = {}, {}
     header_lines = []
     alignment_count = 0
     for name in read_pair_names:
@@ -97,9 +97,12 @@ def align_with_minimap2(reads, read_pair_names, target, threads):
         if alignment.is_aligned():
             alignments[alignment.read_name].append(alignment)
             alignment_count += 1
+        else:
+            unaligned[alignment.read_name] = alignment
+
     log(f'  {alignment_count:,} total alignments')
     log()
-    return alignments, header_lines
+    return alignments, header_lines, unaligned
 
 
 def add_secondary_read_seqs(alignments, read_pair_names):
@@ -128,21 +131,28 @@ def add_secondary_read_seqs(alignments, read_pair_names):
         for a in alignments[name]:
             if a.is_secondary():
                 if a.is_on_forward_strand():
-                    a.read_seq = seq
-                    a.read_qual = qual
+                    a.set_read_seq(seq)
+                    a.set_read_qual(qual)
                 else:
-                    a.read_seq = reverse_complement(seq)
-                    a.read_qual = qual[::-1]
+                    a.set_read_seq(reverse_complement(seq))
+                    a.set_read_qual(qual[::-1])
         for a in alignments[name]:
             assert a.read_seq != '*' and a.read_qual != '*'
 
 
-def filter_alignments(alignments, read_pair_names, max_errors):
+def filter_alignments(alignments, read_pair_names, max_errors, unaligned):
     log('Filtering for high quality end-to-end alignments... ', end='')
     read_names = [n + '/1' for n in read_pair_names] + [n + '/2' for n in read_pair_names]
     for name in read_names:
-        alignments[name] = [a for a in alignments[name]
-                            if a.starts_and_ends_with_match() and a.nm_tag <= max_errors]
+        good_alignments, bad_alignments = [], []
+        for a in alignments[name]:
+            if a.starts_and_ends_with_match() and a.nm_tag <= max_errors:
+                good_alignments.append(a)
+            else:
+                bad_alignments.append(a)
+            alignments[name] = good_alignments
+            if not good_alignments:
+                unaligned[name] = bad_alignments[0]
     log('done')
     log()
 
@@ -233,7 +243,6 @@ class Alignment(object):
         for p in self.parts:
             if p.startswith('NM:i:'):
                 self.nm_tag = int(p[5:])
-        assert self.nm_tag is not None
 
         # The following pieces of information are left empty for the time being. They will be
         # filled in later as needed for multi-alignment reads.
@@ -244,6 +253,11 @@ class Alignment(object):
         self.ref_error_positions = None
         self.read_positions_to_ref_positions = None
         self.ref_positions_to_read_positions = None
+
+        # We now change a few parts to make the SAM be paired in format.
+        self.parts[0] = self.parts[0][:-2]  # removed '/1' or '/2' from the read name
+        assert self.parts[6] == '*'
+        self.parts[6] = '='
 
     def __repr__(self):
         return f'{self.read_name}:{self.ref_name}:{self.ref_start}-{self.ref_end}:{self.nm_tag}'
@@ -263,9 +277,46 @@ class Alignment(object):
     def is_on_forward_strand(self):
         return not self.has_flag(16)
 
-    def set_flags(self, new_flags):
-        self.flags = new_flags
-        self.parts[1] = str(new_flags)
+    def set_flags(self, flags):
+        self.flags = flags
+        self.parts[1] = str(flags)
+
+    def set_ref_name(self, ref_name):
+        self.ref_name = ref_name
+        self.parts[2] = ref_name
+
+    def set_ref_start(self, ref_start):
+        self.ref_start = ref_start
+        self.parts[3] = str(ref_start + 1)
+
+    def set_mapq(self, mapq):
+        self.parts[4] = str(mapq)
+
+    def set_cigar(self, cigar):
+        self.cigar = cigar
+        self.parts[5] = cigar
+
+    def set_rnext(self, rnext):
+        self.parts[6] = rnext
+
+    def set_pnext(self, pnext):
+        self.parts[7] = str(pnext + 1)
+
+    def set_tlen(self, tlen):
+        self.parts[8] = str(tlen)
+
+    def set_read_seq(self, seq):
+        self.read_seq = seq
+        self.parts[9] = seq
+
+    def set_read_qual(self, qual):
+        self.read_qual = qual
+        self.parts[10] = qual
+
+    def make_unaligned(self):
+        self.flags = 5  # read paired (1) and read unmapped (4)
+        self.set_mapq(0)
+        self.set_cigar('*')
 
     def get_sam_line(self):
         return '\t'.join(self.parts)
@@ -399,15 +450,75 @@ def flip_positions(positions, seq_length):
     return flipped_positions
 
 
-def output_alignments_to_stdout(alignments, read_pair_names, header_lines):
+def verify_no_multi_alignments(alignments, read_pair_names):
+    for name in read_pair_names:
+        name_1, name_2 = name + '/1', name + '/2'
+        alignments_1, alignments_2 = alignments[name_1], alignments[name_2]
+        assert len(alignments_1) <= 1 and len(alignments_2) <= 1
+
+
+def fix_sam_pairing(alignments, unaligned, read_pair_names):
+    for name in read_pair_names:
+        name_1, name_2 = name + '/1', name + '/2'
+        alignments_1, alignments_2 = alignments[name_1], alignments[name_2]
+
+        # If neither read in the pair aligned:
+        if not alignments_1 and not alignments_2:
+            unaligned[name_1].set_ref_name('*')
+            unaligned[name_2].set_ref_name('*')
+            unaligned[name_1].set_ref_start(-1)
+            unaligned[name_2].set_ref_start(-1)
+            unaligned[name_1].set_rnext('*')
+            unaligned[name_2].set_rnext('*')
+            unaligned[name_1].set_pnext(-1)
+            unaligned[name_2].set_pnext(-1)
+            unaligned[name_1].set_tlen(0)
+            unaligned[name_2].set_tlen(0)
+
+        # If only the first read in the pair aligned:
+        elif alignments_1 and not alignments_2:
+            unaligned[name_2].set_ref_name(alignments_1[0].ref_name)
+            unaligned[name_2].set_ref_start(alignments_1[0].ref_start)
+            unaligned[name_2].set_pnext(alignments_1[0].ref_start)
+            alignments_1[0].set_pnext(alignments_1[0].ref_start)
+
+        # If only the second read in the pair aligned:
+        elif not alignments_1 and alignments_2:
+            unaligned[name_1].set_ref_name(alignments_2[0].ref_name)
+            unaligned[name_1].set_ref_start(alignments_2[0].ref_start)
+            unaligned[name_1].set_pnext(alignments_2[0].ref_start)
+            alignments_2[0].set_pnext(alignments_2[0].ref_start)
+
+        # If both reads aligned:
+        elif alignments_1 and alignments_2:
+            a_1, a_2 = alignments_1[0], alignments_2[0]
+            a_1.set_pnext(a_2.ref_start)
+            a_2.set_pnext(a_1.ref_start)
+            template_min = min(a_1.ref_start, a_2.ref_start)
+            template_max = max(a_1.ref_end, a_2.ref_end)
+            tlen = template_max - template_min
+            if a_1.ref_start < a_2.ref_start:
+                a_1.set_tlen(tlen)
+                a_2.set_tlen(-tlen)
+            else:
+                a_1.set_tlen(-tlen)
+                a_2.set_tlen(tlen)
+
+        else:
+            assert False
+
+
+def output_alignments_to_stdout(alignments, read_pair_names, header_lines, unaligned):
     for line in header_lines:
         print(line)
     for name in read_pair_names:
         name_1, name_2 = name + '/1', name + '/2'
         alignments_1, alignments_2 = alignments[name_1], alignments[name_2]
-        if alignments_1:
-            assert len(alignments_1) == 1
-            print(alignments_1[0].get_sam_line())
-        if alignments_2:
-            assert len(alignments_2) == 1
-            print(alignments_2[0].get_sam_line())
+        for a in alignments_1:
+            print(a.get_sam_line())
+        if not alignments_1:
+            print(unaligned[name_1].get_sam_line())
+        for a in alignments_2:
+            print(a.get_sam_line())
+        if not alignments_2:
+            print(unaligned[name_2].get_sam_line())
