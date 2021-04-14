@@ -15,8 +15,9 @@ import collections
 import math
 import statistics
 
-from .alignment import get_multi_alignment_read_names, get_expanded_cigar, print_alignment_info
-from .log import log, section_header, explanation, bold_yellow
+from .alignment import get_multi_alignment_read_names, get_expanded_cigar, print_alignment_info, \
+    get_read_bases_for_each_target_base
+from .log import log, section_header, explanation
 from .misc import load_fasta
 
 
@@ -53,7 +54,7 @@ def find_positions(target_name, target_seq, alignments, read_pair_names, repetit
     log(f'  {len(target_seq):,} bp total')
     repeat_length = len(repetitive_regions)
     repeat_percent = 100.0 * repeat_length / len(target_seq)
-    log(f'  {repeat_length:,} bp repetitive ({repeat_percent:.2}%)')
+    log(f'  {repeat_length:,} bp repetitive ({repeat_percent:.2f}%)')
 
     pileup = get_pileup(read_pair_names, alignments, target_name, target_seq)
     non_repeat_depth = get_mean_non_repeat_depth(pileup, repetitive_regions)
@@ -90,11 +91,7 @@ def get_pileup(read_pair_names, alignments, target_name, target_seq):
             if a.ref_name != target_name:
                 continue
             ref_seq = target_seq[a.ref_start:a.ref_end]
-            if a.masked_read_seq is None:
-                read_seq = a.read_seq
-            else:
-                read_seq = a.masked_read_seq
-            aligned_bases = get_read_bases_for_each_target_base(read_seq, ref_seq, a.cigar)
+            aligned_bases = a.get_read_bases_for_each_target_base(ref_seq)
             for i, bases in enumerate(aligned_bases):
                 ref_pos = a.ref_start + i
                 if 'N' not in bases:
@@ -116,29 +113,6 @@ def alignment_overlaps_repeats(a, repetitive_regions):
         if i in repetitive_regions:
             return True
     return False
-
-
-def get_read_bases_for_each_target_base(read_seq, ref_seq, cigar):
-    expanded_cigar = get_expanded_cigar(cigar)
-    i, j = 0, 0
-    read_bases = ['' for _ in range(len(ref_seq))]
-    for c in expanded_cigar:
-        if c == 'M':
-            read_bases[j] += read_seq[i]
-            i += 1
-            j += 1
-        elif c == 'I':
-            read_bases[j] += read_seq[i]
-            i += 1
-        elif c == 'D':
-            read_bases[j] += '-'
-            j += 1
-        else:
-            assert False
-
-    assert i == len(read_seq)
-    assert j == len(ref_seq)
-    return read_bases
 
 
 def select_alignments_using_informative_positions(alignments, informative_positions,

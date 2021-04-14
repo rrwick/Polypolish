@@ -15,6 +15,7 @@ If not, see <http://www.gnu.org/licenses/>.
 """
 
 import poligner.alignment
+import poligner.mask_reads
 
 
 def test_flags_1():
@@ -59,7 +60,7 @@ def test_ref_end_2():
     assert poligner.alignment.get_ref_end(1000, '10M3D8M4I10M') == 1031
 
 
-def prep_for_detailed_alignment_info():
+def prep_alignment():
     """
     cigar: MMMMMMMMMMMIMMDDMMMMMMMMMMIIIMMMMMMMMMDMMMMMMMMMDMMMMMM
 
@@ -86,54 +87,85 @@ def prep_for_detailed_alignment_info():
 
 
 def test_prep_for_detailed_alignment_info_1():
-    a = prep_for_detailed_alignment_info()
+    a = prep_alignment()
     assert a.aligned_read_seq == 'CTCTATGACGACGA--AACGTCGCTCTGTACGAGCGAC-TATAGCGTT-AAAATA'
     assert a.aligned_ref_seq == 'CTCTATGACGA-GACGAACGTCGCTA---ACGAGCGACCTATAGCGTTTAAAATA'
     assert a.diffs == '           *  **         ****         *         *      '
 
 
 def test_prep_for_detailed_alignment_info_2():
-    a = prep_for_detailed_alignment_info()
-    assert a.read_error_positions == {11, 13, 14, 23, 24, 25, 26, 35, 36, 44, 45}
-    assert a.ref_error_positions == {47, 48, 50, 51, 61, 62, 71, 81}
+    a = prep_alignment()
+    assert a.read_error_positions == [11, 13, 13, 23, 24, 25, 26, 35, 44]
+    assert a.ref_error_positions == [47, 50, 51, 61, 61, 61, 61, 71, 81]
 
 
 def test_prep_for_detailed_alignment_info_3():
-    a = prep_for_detailed_alignment_info()
+    a = prep_alignment()
     assert a.read_positions_to_ref_positions[5] == [42]
+    assert a.read_positions_to_ref_positions[19] == [57]
     assert a.read_positions_to_ref_positions[31] == [66]
+    assert a.read_positions_to_ref_positions[48] == [85]
+
+    assert a.ref_positions_to_read_positions[42] == [5]
     assert a.ref_positions_to_read_positions[57] == [19]
+    assert a.ref_positions_to_read_positions[66] == [31]
     assert a.ref_positions_to_read_positions[85] == [48]
 
 
 def test_prep_for_detailed_alignment_info_4():
-    a = prep_for_detailed_alignment_info()
+    a = prep_alignment()
     assert a.read_positions_to_ref_positions[10] == [47]
-    assert a.read_positions_to_ref_positions[11] == [47, 48]
+    assert a.read_positions_to_ref_positions[11] == [47]
     assert a.read_positions_to_ref_positions[12] == [48]
+
+    assert a.ref_positions_to_read_positions[47] == [10, 11]
+    assert a.ref_positions_to_read_positions[48] == [12]
 
     assert a.read_positions_to_ref_positions[22] == [60]
     assert a.read_positions_to_ref_positions[23] == [61]
-    assert a.read_positions_to_ref_positions[24] == [61, 62]
-    assert a.read_positions_to_ref_positions[25] == [61, 62]
-    assert a.read_positions_to_ref_positions[26] == [61, 62]
+    assert a.read_positions_to_ref_positions[24] == [61]
+    assert a.read_positions_to_ref_positions[25] == [61]
+    assert a.read_positions_to_ref_positions[26] == [61]
     assert a.read_positions_to_ref_positions[27] == [62]
+
+    assert a.ref_positions_to_read_positions[60] == [22]
+    assert a.ref_positions_to_read_positions[61] == [23, 24, 25, 26]
+    assert a.ref_positions_to_read_positions[62] == [27]
 
 
 def test_prep_for_detailed_alignment_info_5():
-    a = prep_for_detailed_alignment_info()
+    a = prep_alignment()
     assert a.ref_positions_to_read_positions[49] == [13]
-    assert a.ref_positions_to_read_positions[50] == [13, 14]
-    assert a.ref_positions_to_read_positions[51] == [13, 14]
+    assert a.ref_positions_to_read_positions[50] == [13]
+    assert a.ref_positions_to_read_positions[51] == [13]
     assert a.ref_positions_to_read_positions[52] == [14]
 
+    assert a.read_positions_to_ref_positions[13] == [49, 50, 51]
+    assert a.read_positions_to_ref_positions[14] == [52]
+
     assert a.ref_positions_to_read_positions[70] == [35]
-    assert a.ref_positions_to_read_positions[71] == [35, 36]
+    assert a.ref_positions_to_read_positions[71] == [35]
     assert a.ref_positions_to_read_positions[72] == [36]
 
+    assert a.read_positions_to_ref_positions[35] == [70, 71]
+    assert a.read_positions_to_ref_positions[36] == [72]
+
     assert a.ref_positions_to_read_positions[80] == [44]
-    assert a.ref_positions_to_read_positions[81] == [44, 45]
+    assert a.ref_positions_to_read_positions[81] == [44]
     assert a.ref_positions_to_read_positions[82] == [45]
+
+    assert a.read_positions_to_ref_positions[44] == [80, 81]
+    assert a.read_positions_to_ref_positions[45] == [82]
+
+
+def test_get_read_bases_for_each_target_base():
+    a = prep_alignment()
+    ref_seq = 'CTCTATGACGAGACGAACGTCGCTAACGAGCGACCTATAGCGTTTAAAATA'
+    read_bases = a.get_read_bases_for_each_target_base(ref_seq)
+    assert read_bases == ['C', 'T', 'C', 'T', 'A', 'T', 'G', 'A', 'C', 'G', 'AC', 'G', 'A', '-',
+                          '-', 'A', 'A', 'C', 'G', 'T', 'C', 'G', 'C', 'T', 'CTGT', 'A', 'C', 'G',
+                          'A', 'G', 'C', 'G', 'A', 'C', '-', 'T', 'A', 'T', 'A', 'G', 'C', 'G',
+                          'T', 'T', '-', 'A', 'A', 'A', 'A', 'T', 'A']
 
 
 def test_flip_positions_1():
@@ -142,7 +174,7 @@ def test_flip_positions_1():
     0123456789
     9876543210
     """
-    assert poligner.alignment.flip_positions({0, 1, 2}, 10) == {7, 8, 9}
+    assert poligner.alignment.flip_positions([0, 1, 2], 10) == [7, 8, 9]
 
 
 def test_flip_positions_2():
@@ -151,7 +183,7 @@ def test_flip_positions_2():
     0123456789
     9876543210
     """
-    assert poligner.alignment.flip_positions({1, 5, 6, 8}, 10) == {1, 3, 4, 8}
+    assert poligner.alignment.flip_positions([1, 5, 6, 8], 10) == [1, 3, 4, 8]
 
 
 def test_flip_positions_3():
@@ -160,4 +192,22 @@ def test_flip_positions_3():
     012345678
     876543210
     """
-    assert poligner.alignment.flip_positions({1, 5, 6, 8}, 9) == {0, 2, 3, 7}
+    assert poligner.alignment.flip_positions([1, 5, 6, 8], 9) == [0, 2, 3, 7]
+
+
+def test_create_masked_read_seq_1():
+    a = prep_alignment()
+    poligner.mask_reads.create_masked_read_seq(a, {0})
+    assert a.masked_read_seq == 'NTCTATGACGACGAAACGTCGCTCTGTACGAGCGACTATAGCGTTAAAATA'
+
+
+def test_create_masked_read_seq_2():
+    a = prep_alignment()
+    ref_seq = 'CTCTATGACGAGACGAACGTCGCTAACGAGCGACCTATAGCGTTTAAAATA'
+    poligner.mask_reads.create_masked_read_seq(a, set(a.read_error_positions))
+    assert a.masked_read_seq == 'CTCTATGACGANGNAACGTCGCTNNNNACGAGCGANTATAGCGTNAAAATA'
+    read_bases = a.get_read_bases_for_each_target_base(ref_seq)
+    assert read_bases == ['C', 'T', 'C', 'T', 'A', 'T', 'G', 'A', 'C', 'G', 'AN', 'G', 'N', '-',
+                          '-', 'A', 'A', 'C', 'G', 'T', 'C', 'G', 'C', 'T', 'NNNN', 'A', 'C', 'G',
+                          'A', 'G', 'C', 'G', 'A', 'N', '-', 'T', 'A', 'T', 'A', 'G', 'C', 'G',
+                          'T', 'N', '-', 'A', 'A', 'A', 'A', 'T', 'A']

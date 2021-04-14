@@ -344,9 +344,9 @@ class Alignment(object):
         position of the alignment according to this function is 431 (not 0).
         """
         self.aligned_read_seq, self.aligned_ref_seq, self.diffs = [], [], []
-        self.read_error_positions, self.ref_error_positions = set(), set()
-        self.read_positions_to_ref_positions = collections.defaultdict(set)
-        self.ref_positions_to_read_positions = collections.defaultdict(set)
+        self.read_error_positions, self.ref_error_positions = [], []
+        self.read_positions_to_ref_positions = collections.defaultdict(list)
+        self.ref_positions_to_read_positions = collections.defaultdict(list)
 
         expanded_cigar = get_expanded_cigar(self.cigar)
         i, j = 0, 0
@@ -358,30 +358,28 @@ class Alignment(object):
                     diff = ' '
                 else:
                     diff = '*'
-                    self.read_error_positions.add(i)
-                    self.ref_error_positions.add(j + self.ref_start)
-                self.read_positions_to_ref_positions[i].add(j + self.ref_start)
-                self.ref_positions_to_read_positions[j + self.ref_start].add(i)
+                    self.read_error_positions.append(i)
+                    self.ref_error_positions.append(j + self.ref_start)
+                self.read_positions_to_ref_positions[i].append(j + self.ref_start)
+                self.ref_positions_to_read_positions[j + self.ref_start].append(i)
                 i += 1
                 j += 1
             elif c == 'I':
                 b_1 = self.read_seq[i]
                 b_2 = '-'
-                self.read_error_positions.add(i)
-                self.ref_error_positions.add(j + self.ref_start - 1)
-                self.ref_error_positions.add(j + self.ref_start)
-                self.read_positions_to_ref_positions[i].add(j + self.ref_start - 1)
-                self.read_positions_to_ref_positions[i].add(j + self.ref_start)
+                self.read_error_positions.append(i)
+                self.ref_error_positions.append(j + self.ref_start - 1)
+                self.read_positions_to_ref_positions[i].append(j + self.ref_start - 1)
+                self.ref_positions_to_read_positions[j + self.ref_start - 1].append(i)
                 diff = '*'
                 i += 1
             elif c == 'D':
                 b_1 = '-'
                 b_2 = ref_seq[j]
-                self.read_error_positions.add(i - 1)
-                self.read_error_positions.add(i)
-                self.ref_error_positions.add(j + self.ref_start)
-                self.ref_positions_to_read_positions[j + self.ref_start].add(i - 1)
-                self.ref_positions_to_read_positions[j + self.ref_start].add(i)
+                self.read_error_positions.append(i - 1)
+                self.ref_error_positions.append(j + self.ref_start)
+                self.read_positions_to_ref_positions[i - 1].append(j + self.ref_start)
+                self.ref_positions_to_read_positions[j + self.ref_start].append(i - 1)
                 diff = '*'
                 j += 1
             else:
@@ -397,14 +395,6 @@ class Alignment(object):
         assert self.aligned_read_seq.replace('-', '') == self.read_seq
         assert self.aligned_ref_seq.replace('-', '') == ref_seq
 
-        # Convert from dictionary of sets to dictionary of lists.
-        self.read_positions_to_ref_positions = \
-            {read_pos: sorted(ref_pos)
-             for read_pos, ref_pos in self.read_positions_to_ref_positions.items()}
-        self.ref_positions_to_read_positions = \
-            {ref_pos: sorted(read_pos)
-             for ref_pos, read_pos in self.ref_positions_to_read_positions.items()}
-
         # Sanity check: if there are too many mismatches, something has gone terribly wrong!
         assert len(self.read_error_positions) < len(self.read_seq) // 2
 
@@ -416,6 +406,32 @@ class Alignment(object):
         log(self.aligned_read_seq)
         log(self.aligned_ref_seq)
         log(self.diffs)
+
+    def get_read_bases_for_each_target_base(self, ref_seq):
+        if self.masked_read_seq is None:
+            read_seq = self.read_seq
+        else:
+            read_seq = self.masked_read_seq
+        expanded_cigar = get_expanded_cigar(self.cigar)
+        i, j = 0, 0
+        read_bases = ['' for _ in range(len(ref_seq))]
+        for c in expanded_cigar:
+            if c == 'M':
+                read_bases[j] += read_seq[i]
+                i += 1
+                j += 1
+            elif c == 'I':
+                read_bases[j-1] += read_seq[i]
+                i += 1
+            elif c == 'D':
+                read_bases[j] += '-'
+                j += 1
+            else:
+                assert False
+
+        assert i == len(read_seq)
+        assert j == len(ref_seq)
+        return read_bases
 
 
 def get_ref_end(ref_start, cigar):
@@ -444,9 +460,9 @@ def flip_positions(positions, seq_length):
     """
     This function takes a set of positions (0-based) and flips them to the reverse strand positions.
     """
-    flipped_positions = set()
-    for p in positions:
-        flipped_positions.add(seq_length - p - 1)
+    flipped_positions = []
+    for p in positions[::-1]:
+        flipped_positions.append(seq_length - p - 1)
     return flipped_positions
 
 

@@ -57,9 +57,9 @@ def get_mask_positions(read_alignments):
             read_errors = a.read_error_positions
 
         if mask_positions is None:
-            mask_positions = read_errors
+            mask_positions = set(read_errors)
         else:
-            mask_positions &= read_errors
+            mask_positions &= set(read_errors)
     return mask_positions
 
 
