@@ -237,7 +237,6 @@ class Alignment(object):
         self.ref_end = get_ref_end(self.ref_start, self.cigar)
         self.read_seq = self.parts[9]
         self.read_qual = self.parts[10]
-        self.masked_read_seq = None
 
         self.nm_tag = None
         for p in self.parts:
@@ -253,6 +252,7 @@ class Alignment(object):
         self.ref_error_positions = None
         self.read_positions_to_ref_positions = None
         self.ref_positions_to_read_positions = None
+        self.masked_read_positions = set()
 
         # We now change a few parts to make the SAM be paired in format.
         self.parts[0] = self.parts[0][:-2]  # removed '/1' or '/2' from the read name
@@ -408,20 +408,16 @@ class Alignment(object):
         log(self.diffs)
 
     def get_read_bases_for_each_target_base(self, ref_seq):
-        if self.masked_read_seq is None:
-            read_seq = self.read_seq
-        else:
-            read_seq = self.masked_read_seq
         expanded_cigar = get_expanded_cigar(self.cigar)
         i, j = 0, 0
         read_bases = ['' for _ in range(len(ref_seq))]
         for c in expanded_cigar:
             if c == 'M':
-                read_bases[j] += read_seq[i]
+                read_bases[j] += self.read_seq[i]
                 i += 1
                 j += 1
             elif c == 'I':
-                read_bases[j-1] += read_seq[i]
+                read_bases[j-1] += self.read_seq[i]
                 i += 1
             elif c == 'D':
                 read_bases[j] += '-'
@@ -429,7 +425,7 @@ class Alignment(object):
             else:
                 assert False
 
-        assert i == len(read_seq)
+        assert i == len(self.read_seq)
         assert j == len(ref_seq)
         return read_bases
 

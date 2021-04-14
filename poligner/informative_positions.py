@@ -15,9 +15,8 @@ import collections
 import math
 import statistics
 
-from .alignment import get_multi_alignment_read_names, get_expanded_cigar, print_alignment_info, \
-    get_read_bases_for_each_target_base
-from .log import log, section_header, explanation
+from .alignment import get_multi_alignment_read_names, print_alignment_info
+from .log import log, section_header, explanation, bold_yellow
 from .misc import load_fasta
 
 
@@ -56,11 +55,12 @@ def find_positions(target_name, target_seq, alignments, read_pair_names, repetit
     repeat_percent = 100.0 * repeat_length / len(target_seq)
     log(f'  {repeat_length:,} bp repetitive ({repeat_percent:.2f}%)')
 
-    pileup = get_pileup(read_pair_names, alignments, target_name, target_seq)
+    read_names = [n + '/1' for n in read_pair_names] + [n + '/2' for n in read_pair_names]
+    pileup = get_pileup(read_names, alignments, target_name, target_seq)
     non_repeat_depth = get_mean_non_repeat_depth(pileup, repetitive_regions)
-    non_ref_base_threshold = int(math.ceil(non_repeat_depth / 10))
+    threshold = int(math.ceil(non_repeat_depth / 4))
     log(f'  Mean non-repeat depth: {non_repeat_depth:.1f}')
-    log(f'  Minimum ambiguity threshold: {non_ref_base_threshold}')
+    log(f'  Minimum ambiguity threshold: {threshold}')
 
     informative_positions = set()
     log('  Finding informative positions: ', end='')
@@ -72,7 +72,7 @@ def find_positions(target_name, target_seq, alignments, read_pair_names, repetit
                 second_best_count = 0
             else:
                 second_best_count = sorted(counts)[-2]
-            if second_best_count >= non_ref_base_threshold:
+            if second_best_count >= threshold:
                 informative_positions.add(i)
             #     log(bold_yellow(pileup_str))  # DEBUGGING
             # else:  # DEBUGGING
@@ -82,9 +82,8 @@ def find_positions(target_name, target_seq, alignments, read_pair_names, repetit
     return informative_positions
 
 
-def get_pileup(read_pair_names, alignments, target_name, target_seq):
+def get_pileup(read_names, alignments, target_name, target_seq):
     pileup = collections.defaultdict(list)
-    read_names = [n + '/1' for n in read_pair_names] + [n + '/2' for n in read_pair_names]
     for name in read_names:
         read_alignments = alignments[name]
         for a in read_alignments:
@@ -94,7 +93,11 @@ def get_pileup(read_pair_names, alignments, target_name, target_seq):
             aligned_bases = a.get_read_bases_for_each_target_base(ref_seq)
             for i, bases in enumerate(aligned_bases):
                 ref_pos = a.ref_start + i
-                if 'N' not in bases:
+                if a.ref_positions_to_read_positions is not None:
+                    corresponding_read_bases = a.ref_positions_to_read_positions[ref_pos]
+                else:
+                    corresponding_read_bases = set()
+                if not any(b in a.masked_read_positions for b in corresponding_read_bases):
                     pileup[ref_pos].append(bases)
     return pileup
 

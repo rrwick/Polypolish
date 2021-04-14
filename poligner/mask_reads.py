@@ -37,7 +37,7 @@ def mask_read_sequences(read_pair_names, alignments, target):
         mask_positions = get_mask_positions(read_alignments)
         if mask_positions:
             for a in read_alignments:
-                create_masked_read_seq(a, mask_positions)
+                a.masked_read_positions = mask_positions
         total_masked_bases += len(mask_positions)
 
     log(f'Masked {total_masked_bases:,} bases in {len(multi_alignment_read_names):,} reads')
@@ -61,16 +61,3 @@ def get_mask_positions(read_alignments):
         else:
             mask_positions &= set(read_errors)
     return mask_positions
-
-
-def create_masked_read_seq(alignment, mask_positions):
-    """
-    This function creates a masked version of the read sequence in the alignment, where all mask
-    positions are replaced with 'N' bases.
-    """
-    alignment.masked_read_seq = alignment.read_seq[:]
-    if alignment.is_on_reverse_strand():
-        mask_positions = flip_positions(mask_positions, len(alignment.read_seq))
-    for i in mask_positions:
-        alignment.masked_read_seq = \
-            alignment.masked_read_seq[:i] + 'N' + alignment.masked_read_seq[i + 1:]

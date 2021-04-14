@@ -15,7 +15,6 @@ If not, see <http://www.gnu.org/licenses/>.
 """
 
 import poligner.alignment
-import poligner.mask_reads
 
 
 def test_flags_1():
@@ -193,21 +192,3 @@ def test_flip_positions_3():
     876543210
     """
     assert poligner.alignment.flip_positions([1, 5, 6, 8], 9) == [0, 2, 3, 7]
-
-
-def test_create_masked_read_seq_1():
-    a = prep_alignment()
-    poligner.mask_reads.create_masked_read_seq(a, {0})
-    assert a.masked_read_seq == 'NTCTATGACGACGAAACGTCGCTCTGTACGAGCGACTATAGCGTTAAAATA'
-
-
-def test_create_masked_read_seq_2():
-    a = prep_alignment()
-    ref_seq = 'CTCTATGACGAGACGAACGTCGCTAACGAGCGACCTATAGCGTTTAAAATA'
-    poligner.mask_reads.create_masked_read_seq(a, set(a.read_error_positions))
-    assert a.masked_read_seq == 'CTCTATGACGANGNAACGTCGCTNNNNACGAGCGANTATAGCGTNAAAATA'
-    read_bases = a.get_read_bases_for_each_target_base(ref_seq)
-    assert read_bases == ['C', 'T', 'C', 'T', 'A', 'T', 'G', 'A', 'C', 'G', 'AN', 'G', 'N', '-',
-                          '-', 'A', 'A', 'C', 'G', 'T', 'C', 'G', 'C', 'T', 'NNNN', 'A', 'C', 'G',
-                          'A', 'G', 'C', 'G', 'A', 'N', '-', 'T', 'A', 'T', 'A', 'G', 'C', 'G',
-                          'T', 'N', '-', 'A', 'A', 'A', 'A', 'T', 'A']
