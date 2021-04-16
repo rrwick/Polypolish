@@ -78,9 +78,17 @@ def combine_reads_into_one_file(short1, short2, temp_dir):
 
 
 def align_with_minimap2(reads, read_pair_names, target, threads):
+    """
+    Runs minimap2 to align the reads. We use minimap2 using mostly the -x sr option (short-read
+    preset), but with the following changes:
+    * I set `--secondary=yes -p0.1 -N1000000` to include all alignments
+    * I do NOT use --sr (short-read alignment heuristics), which resulted in some goofy alignments
+      in my tests
+    """
     log(f'Aligning reads with minimap2:')
-    command = ['minimap2', '-ax', 'sr', '--secondary=yes', '-p', '0.1', '-N', '1000000',
-               '-t', str(threads), target, reads]
+    command = ['minimap2', '-a', '-k21', '-w11', '--frag=yes', '-A2', '-B8', '-O12,32', '-E2,1',
+               '-r50', '-f1000,5000', '-n2', '-m20', '-s40', '-g200', '-2K50m', '--heap-sort=yes',
+               '--secondary=yes', '-p0.1', '-N1000000', '-t', str(threads), target, reads]
     log('  ' + ' '.join(command))
     stdout, stderr, return_code = run_command(command)
     alignments, unaligned = {}, {}
@@ -424,7 +432,6 @@ class Alignment(object):
                 j += 1
             else:
                 assert False
-
         assert i == len(self.read_seq)
         assert j == len(ref_seq)
         return read_bases

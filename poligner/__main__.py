@@ -22,11 +22,8 @@ from .help_formatter import MyParser, MyHelpFormatter
 from .insert_size import get_insert_size_distribution, select_alignments_using_insert_size, \
     final_alignment_selection, set_sam_flags
 from .log import bold
-from .mask_reads import mask_read_sequences
-from .mask_targets import mask_target_sequences
-from .informative_positions import find_informative_positions, \
-    select_alignments_using_informative_positions
-from .misc import get_default_thread_count, check_python_version, get_ascii_art
+from .mask_targets import mask_target_sequences, select_best_alignments
+from .misc import get_default_thread_count, check_python_version, get_ascii_art, load_fasta
 from .version import __version__
 
 
@@ -34,16 +31,18 @@ def main():
     check_python_version()
     args = parse_args()
     random.seed(0)
+    target_seqs = load_fasta(args.target)
+
     alignments, read_pair_names, read_count, header_lines, unaligned = \
         align_reads(args.target, args.short1, args.short2, args.threads, args.max_errors)
+
     insert_size_distribution = get_insert_size_distribution(alignments)
-    select_alignments_using_insert_size(alignments, insert_size_distribution,
-                                        read_pair_names, read_count)
-    # mask_read_sequences(read_pair_names, alignments, args.target)
-    mask_target_sequences(read_pair_names, alignments, args.target, args.kmer)
-    # informative_positions = find_informative_positions(read_pair_names, alignments, args.target)
-    # select_alignments_using_informative_positions(alignments, informative_positions,
-    #                                               read_pair_names, read_count)
+    select_alignments_using_insert_size(alignments, insert_size_distribution, read_pair_names,
+                                        read_count)
+
+    mask_positions = mask_target_sequences(read_pair_names, alignments, target_seqs, args.debug)
+    select_best_alignments(alignments, mask_positions, read_pair_names, read_count, target_seqs)
+
     final_alignment_selection(alignments, insert_size_distribution, read_pair_names, read_count)
     verify_no_multi_alignments(alignments, read_pair_names)
     set_sam_flags(alignments, unaligned, read_pair_names, insert_size_distribution)
@@ -69,10 +68,11 @@ def parse_args():
     setting_args.add_argument('-m', '--max_errors', type=int, default=20,
                               help='Ignore alignments with more than this number of mismatches '
                                    'and indels')
-    setting_args.add_argument('-k', '--kmer', type=int, default=32,
-                              help='K-mer size used for finding target mask positions')
     setting_args.add_argument('-t', '--threads', type=int, default=get_default_thread_count(),
                               help='Number of threads')
+
+    setting_args.add_argument('--debug', action='store_true',
+                              help='Output lots of extra information (for debugging purposes)')
 
     help_args = parser.add_argument_group('Help')
     help_args.add_argument('-h', '--help', action='help', default=argparse.SUPPRESS,
