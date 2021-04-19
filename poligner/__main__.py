@@ -40,7 +40,7 @@ def main():
     select_alignments_using_insert_size(alignments, insert_size_distribution, read_pair_names,
                                         read_count)
 
-    mask_positions = mask_target_sequences(read_pair_names, alignments, target_seqs, args.debug)
+    mask_positions = mask_target_sequences(alignments, target_seqs, args.debug)
     select_best_alignments(alignments, mask_positions, read_pair_names, read_count, target_seqs)
 
     final_alignment_selection(alignments, insert_size_distribution, read_pair_names, read_count)

@@ -24,7 +24,7 @@ def test_get_pileup():
               'CTCTATGACGAGACGAACGTCGCTAACGAGCGACCTATAGCGTTTAAAATA' \
               'GGATTATCGAACACCGGTAG'
     alignments = {'read': [a]}
-    pileup = poligner.mask_targets.get_pileup(['read'], alignments, 'ref', ref_seq)
+    pileup = poligner.mask_targets.get_pileup(alignments, 'ref', ref_seq)
     for i in range(37):
         assert pileup[i] == []
     assert pileup[37] == ['C']
@@ -78,5 +78,5 @@ def test_get_pileup():
     assert pileup[85] == ['A']
     assert pileup[86] == ['T']
     assert pileup[87] == ['A']
-    for i in range(88, 109):
+    for i in range(88, 108):
         assert pileup[i] == []

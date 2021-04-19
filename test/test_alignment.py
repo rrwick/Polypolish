@@ -76,7 +76,6 @@ def prep_alignment():
     ref_start = 37
     cigar = '11M1I2M2D10M3I9M1D9M1D6M'
     read_seq = 'CTCTATGACGACGAAACGTCGCTCTGTACGAGCGACTATAGCGTTAAAATA'
-    ref_seq = 'CTCTATGACGAGACGAACGTCGCTAACGAGCGACCTATAGCGTTTAAAATA'
     read_qual = 'A' * len(read_seq)
 
     a = poligner.alignment.Alignment(f'read\t0\tref\t{ref_start+1}\t0\t{cigar}\t*\t0\t0\t'

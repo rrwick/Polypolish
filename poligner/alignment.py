@@ -328,23 +328,21 @@ class Alignment(object):
 
     def get_read_bases_for_each_target_base(self, ref_seq):
         expanded_cigar = get_expanded_cigar(self.cigar)
-        i, j = 0, 0
-        read_bases = ['' for _ in range(len(ref_seq))]
+        i = 0
+        read_bases = []
         for c in expanded_cigar:
             if c == 'M':
-                read_bases[j] += self.read_seq[i]
+                read_bases.append(self.read_seq[i])
                 i += 1
-                j += 1
             elif c == 'I':
-                read_bases[j-1] += self.read_seq[i]
+                read_bases[-1] += self.read_seq[i]
                 i += 1
             elif c == 'D':
-                read_bases[j] += '-'
-                j += 1
+                read_bases.append('-')
             else:
                 assert False
         assert i == len(self.read_seq)
-        assert j == len(ref_seq)
+        assert len(read_bases) == len(ref_seq)
         return read_bases
 
 

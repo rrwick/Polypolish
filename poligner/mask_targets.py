@@ -10,14 +10,11 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public
 details. You should have received a copy of the GNU General Public License along with Poligner.
 If not, see <http://www.gnu.org/licenses/>.
 """
-
-import collections
-
 from .alignment import get_multi_alignment_read_names, print_alignment_info
 from .log import log, section_header, explanation
 
 
-def mask_target_sequences(read_pair_names, alignments, target_seqs, debug):
+def mask_target_sequences(alignments, target_seqs, debug):
     section_header('Masking target sequences')
     explanation('Poligner masks out any target bases which appear to be in error. It does this '
                 'tallying up all of the k-mers in the aligned reads and finding positions in the '
@@ -26,22 +23,19 @@ def mask_target_sequences(read_pair_names, alignments, target_seqs, debug):
     mask_positions = {}
     for target_name, target_seq in target_seqs:
         mask_positions_one_target = \
-            get_mask_positions(target_name, target_seq, read_pair_names, alignments, debug)
+            get_mask_positions(target_name, target_seq, alignments, debug)
         mask_positions[target_name] = mask_positions_one_target
     return mask_positions
 
 
-def get_mask_positions(target_name, target_seq, read_pair_names, alignments, debug):
+def get_mask_positions(target_name, target_seq, alignments, debug):
     log(f'Masking {target_name}')
     log(f'  {len(target_seq):,} bp total')
     depths_by_pos = get_depths_by_pos(target_name, target_seq, alignments)
     mask_positions = set()
-
-    read_names = [n + '/1' for n in read_pair_names] + [n + '/2' for n in read_pair_names]
-    pileup = get_pileup(read_names, alignments, target_name, target_seq)
+    pileup = get_pileup(alignments, target_name, target_seq)
     if debug:
         log()
-
     for i in range(len(target_seq)):
         read_bases = pileup[i]
         depth = depths_by_pos[i]
@@ -71,28 +65,24 @@ def get_mask_positions(target_name, target_seq, read_pair_names, alignments, deb
 def get_depths_by_pos(target_name, target_seq, alignments):
     depths_by_pos = {i: 0.0 for i in range(len(target_seq))}
     for _, read_alignments in alignments.items():
-        if not read_alignments:
-            continue
-        depth_contribution = 1.0 / len(read_alignments)
         for a in read_alignments:
             if a.ref_name == target_name:
+                depth_contribution = 1.0 / len(read_alignments)
                 for i in range(a.ref_start, a.ref_end):
                     depths_by_pos[i] += depth_contribution
     return depths_by_pos
 
 
-def get_pileup(read_names, alignments, target_name, target_seq):
-    pileup = collections.defaultdict(list)
-    for name in read_names:
-        read_alignments = alignments[name]
+def get_pileup(alignments, target_name, target_seq):
+    pileup = {i: [] for i in range(len(target_seq))}
+    for _, read_alignments in alignments.items():
         for a in read_alignments:
             if a.ref_name != target_name:
                 continue
             ref_seq = target_seq[a.ref_start:a.ref_end]
             aligned_bases = a.get_read_bases_for_each_target_base(ref_seq)
             for i, bases in enumerate(aligned_bases):
-                ref_pos = a.ref_start + i
-                pileup[ref_pos].append(bases)
+                pileup[a.ref_start + i].append(bases)
     return pileup
 
 
