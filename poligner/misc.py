@@ -93,31 +93,6 @@ def iterate_fastq(filename):
             yield name, header, sequence, qualities
 
 
-def load_fastq_as_dict(read_filename):
-    reads = {name: (header, seq, qual) for name, header, seq, qual in iterate_fastq(read_filename)}
-    return reads
-
-
-def get_fastq_stats(filename):
-    seq_lengths = [len(s) for _, _, s, _ in iterate_fastq(filename)]
-    read_count = len(seq_lengths)
-    total_size = sum(seq_lengths)
-    n50 = get_n50(seq_lengths)
-    return read_count, total_size, n50
-
-
-def get_n50(seq_lengths):
-    seq_lengths = sorted(seq_lengths, reverse=True)
-    total_bases = sum(seq_lengths)
-    target_bases = total_bases * 0.5
-    bases_so_far = 0
-    for sequence_length in seq_lengths:
-        bases_so_far += sequence_length
-        if bases_so_far >= target_bases:
-            return sequence_length
-    return 0
-
-
 def load_fasta(fasta_filename, include_full_header=False):
     if get_compression_type(fasta_filename) == 'gz':
         open_func = gzip.open
@@ -153,12 +128,6 @@ def get_default_thread_count():
     return min(multiprocessing.cpu_count(), 16)
 
 
-def write_seq_to_fasta(seq, name, filename):
-    with open(filename, 'wt') as f:
-        f.write(f'>{name}\n')
-        f.write(f'{seq.upper()}\n')
-
-
 REV_COMP_DICT = {'A': 'T', 'T': 'A', 'G': 'C', 'C': 'G', 'a': 't', 't': 'a', 'g': 'c', 'c': 'g',
                  'R': 'Y', 'Y': 'R', 'S': 'S', 'W': 'W', 'K': 'M', 'M': 'K', 'B': 'V', 'V': 'B',
                  'D': 'H', 'H': 'D', 'N': 'N', 'r': 'y', 'y': 'r', 's': 's', 'w': 'w', 'k': 'm',
@@ -177,71 +146,9 @@ def reverse_complement(seq):
     return ''.join([complement_base(x) for x in seq][::-1])
 
 
-def remove_duplicates(lst):
-    """
-    https://stackoverflow.com/questions/480214
-    """
-    seen = set()
-    seen_add = seen.add
-    return [x for x in lst if not (x in seen or seen_add(x))]
-
-
 def check_python_version():
     if sys.version_info.major < 3 or sys.version_info.minor < 6:
-        sys.exit('\nError: Trycycler requires Python 3.6 or later')
-
-
-def check_output_directory(directory: pathlib.Path):
-    if directory.is_file():
-        sys.exit(f'\nError: output directory ({directory}) already exists as a file')
-    if directory.is_dir():
-        if len(list(directory.iterdir())) > 0:
-            log(f'Output directory ({directory}) already exists and is not empty - files may be '
-                f'overwritten.')
-        else:
-            log(f'Output directory already exists: {directory}')
-    else:
-        log(f'Creating output directory: {directory}')
-        directory.mkdir(parents=True)
-    log()
-
-
-def count_substrings(s, substring):
-    """
-    https://stackoverflow.com/questions/11476713
-    """
-    string_size = len(s)
-    substring_size = len(substring)
-    count = 0
-    for i in range(0, string_size-substring_size+1):
-        if s[i:i+substring_size] == substring:
-            count += 1
-    return count
-
-
-def range_overlap(x1, x2, y1, y2):
-    """
-    Returns true if the range (x1, x2) overlaps with the range (y1, y2).
-    """
-    return x1 < y2 and y1 < x2
-
-
-def check_input_reads(filename, file_size_only=False):
-    read_type = get_sequence_file_type(filename)
-    if read_type != 'FASTQ':
-        sys.exit(f'\nError: input reads ({filename}) are not in FASTQ format')
-    log(f'Input reads: {filename}')
-    if file_size_only:
-        file_size = pathlib.Path(filename).stat().st_size
-        log(f'  size = {file_size:,} bytes')
-        log()
-        return file_size
-    else:
-        read_count, total_size, n50 = get_fastq_stats(filename)
-        log(f'  {read_count:,} reads ({total_size:,} bp)')
-        log(f'  N50 = {n50:,} bp')
-        log()
-        return read_count, total_size
+        sys.exit('\nError: Poligner requires Python 3.6 or later')
 
 
 def get_ascii_art():
@@ -256,28 +163,17 @@ def get_ascii_art():
     return ascii_art
 
 
-def count_lines(filename):
-    return sum(1 for _ in get_open_func(filename)(filename))
-
-
 def run_command(command):
     result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                             universal_newlines=True)
     return result.stdout.strip(), result.stderr.strip(), result.returncode
 
 
-def get_percentile(unsorted_list, percentile):
-    """
-    Returns a percentile of a list of numbers. Doesn't assume the list has already been sorted.
-    Implements the nearest rank method:
-    https://en.wikipedia.org/wiki/Percentile#The_Nearest_Rank_method
-    """
-    return get_percentile_sorted(sorted(unsorted_list), percentile)
-
-
 def get_percentile_sorted(sorted_list, percentile):
     """
-    Same as the above function, but assumes the list is already sorted.
+    Returns a percentile of a list of numbers. Assumes the list has already been sorted.
+    Implements the nearest rank method:
+    https://en.wikipedia.org/wiki/Percentile#The_Nearest_Rank_method
     """
     if not sorted_list:
         return 0.0

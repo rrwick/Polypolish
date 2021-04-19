@@ -81,80 +81,7 @@ def prep_alignment():
 
     a = poligner.alignment.Alignment(f'read\t0\tref\t{ref_start+1}\t0\t{cigar}\t*\t0\t0\t'
                                      f'{read_seq}\t{read_qual}\tNM:i:0')
-    a.add_detailed_alignment_info(ref_seq)
     return a
-
-
-def test_prep_for_detailed_alignment_info_1():
-    a = prep_alignment()
-    assert a.aligned_read_seq == 'CTCTATGACGACGA--AACGTCGCTCTGTACGAGCGAC-TATAGCGTT-AAAATA'
-    assert a.aligned_ref_seq == 'CTCTATGACGA-GACGAACGTCGCTA---ACGAGCGACCTATAGCGTTTAAAATA'
-    assert a.diffs == '           *  **         ****         *         *      '
-
-
-def test_prep_for_detailed_alignment_info_2():
-    a = prep_alignment()
-    assert a.read_error_positions == [11, 13, 13, 23, 24, 25, 26, 35, 44]
-    assert a.ref_error_positions == [47, 50, 51, 61, 61, 61, 61, 71, 81]
-
-
-def test_prep_for_detailed_alignment_info_3():
-    a = prep_alignment()
-    assert a.read_positions_to_ref_positions[5] == [42]
-    assert a.read_positions_to_ref_positions[19] == [57]
-    assert a.read_positions_to_ref_positions[31] == [66]
-    assert a.read_positions_to_ref_positions[48] == [85]
-
-    assert a.ref_positions_to_read_positions[42] == [5]
-    assert a.ref_positions_to_read_positions[57] == [19]
-    assert a.ref_positions_to_read_positions[66] == [31]
-    assert a.ref_positions_to_read_positions[85] == [48]
-
-
-def test_prep_for_detailed_alignment_info_4():
-    a = prep_alignment()
-    assert a.read_positions_to_ref_positions[10] == [47]
-    assert a.read_positions_to_ref_positions[11] == [47]
-    assert a.read_positions_to_ref_positions[12] == [48]
-
-    assert a.ref_positions_to_read_positions[47] == [10, 11]
-    assert a.ref_positions_to_read_positions[48] == [12]
-
-    assert a.read_positions_to_ref_positions[22] == [60]
-    assert a.read_positions_to_ref_positions[23] == [61]
-    assert a.read_positions_to_ref_positions[24] == [61]
-    assert a.read_positions_to_ref_positions[25] == [61]
-    assert a.read_positions_to_ref_positions[26] == [61]
-    assert a.read_positions_to_ref_positions[27] == [62]
-
-    assert a.ref_positions_to_read_positions[60] == [22]
-    assert a.ref_positions_to_read_positions[61] == [23, 24, 25, 26]
-    assert a.ref_positions_to_read_positions[62] == [27]
-
-
-def test_prep_for_detailed_alignment_info_5():
-    a = prep_alignment()
-    assert a.ref_positions_to_read_positions[49] == [13]
-    assert a.ref_positions_to_read_positions[50] == [13]
-    assert a.ref_positions_to_read_positions[51] == [13]
-    assert a.ref_positions_to_read_positions[52] == [14]
-
-    assert a.read_positions_to_ref_positions[13] == [49, 50, 51]
-    assert a.read_positions_to_ref_positions[14] == [52]
-
-    assert a.ref_positions_to_read_positions[70] == [35]
-    assert a.ref_positions_to_read_positions[71] == [35]
-    assert a.ref_positions_to_read_positions[72] == [36]
-
-    assert a.read_positions_to_ref_positions[35] == [70, 71]
-    assert a.read_positions_to_ref_positions[36] == [72]
-
-    assert a.ref_positions_to_read_positions[80] == [44]
-    assert a.ref_positions_to_read_positions[81] == [44]
-    assert a.ref_positions_to_read_positions[82] == [45]
-
-    assert a.read_positions_to_ref_positions[44] == [80, 81]
-    assert a.read_positions_to_ref_positions[45] == [82]
 
 
 def test_get_read_bases_for_each_target_base():
@@ -165,30 +92,3 @@ def test_get_read_bases_for_each_target_base():
                           '-', 'A', 'A', 'C', 'G', 'T', 'C', 'G', 'C', 'T', 'CTGT', 'A', 'C', 'G',
                           'A', 'G', 'C', 'G', 'A', 'C', '-', 'T', 'A', 'T', 'A', 'G', 'C', 'G',
                           'T', 'T', '-', 'A', 'A', 'A', 'A', 'T', 'A']
-
-
-def test_flip_positions_1():
-    """
-    ***
-    0123456789
-    9876543210
-    """
-    assert poligner.alignment.flip_positions([0, 1, 2], 10) == [7, 8, 9]
-
-
-def test_flip_positions_2():
-    """
-     *   ** *
-    0123456789
-    9876543210
-    """
-    assert poligner.alignment.flip_positions([1, 5, 6, 8], 10) == [1, 3, 4, 8]
-
-
-def test_flip_positions_3():
-    """
-     *   ** *
-    012345678
-    876543210
-    """
-    assert poligner.alignment.flip_positions([1, 5, 6, 8], 9) == [0, 2, 3, 7]

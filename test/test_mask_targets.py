@@ -18,10 +18,7 @@ import poligner.mask_targets
 import test.test_alignment
 
 
-def test_get_pileup_1():
-    """
-    Tests a pileup from an unmasked read sequence.
-    """
+def test_get_pileup():
     a = test.test_alignment.prep_alignment()
     ref_seq = 'ATCGCAATTGTAGAAGGACCTAGGAAGCAAAAGTTTC' \
               'CTCTATGACGAGACGAACGTCGCTAACGAGCGACCTATAGCGTTTAAAATA' \
@@ -83,101 +80,3 @@ def test_get_pileup_1():
     assert pileup[87] == ['A']
     for i in range(88, 109):
         assert pileup[i] == []
-
-
-def test_get_pileup_2():
-    """
-    Tests a pileup from a read sequence with a couple masked bases.
-    """
-    a = test.test_alignment.prep_alignment()
-    ref_seq = 'ATCGCAATTGTAGAAGGACCTAGGAAGCAAAAGTTTC' \
-              'CTCTATGACGAGACGAACGTCGCTAACGAGCGACCTATAGCGTTTAAAATA' \
-              'GGATTATCGAACACCGGTAG'
-    alignments = {'read': [a]}
-    a.masked_read_positions = {6, 16}
-    pileup = poligner.mask_targets.get_pileup(['read'], alignments, 'ref', ref_seq)
-    assert pileup[41] == ['A']
-    assert pileup[42] == ['T']
-    assert pileup[43] == []
-    assert pileup[44] == ['A']
-    assert pileup[45] == ['C']
-    assert pileup[46] == ['G']
-    assert pileup[47] == ['AC']
-    assert pileup[48] == ['G']
-    assert pileup[49] == ['A']
-    assert pileup[50] == ['-']
-    assert pileup[51] == ['-']
-    assert pileup[52] == ['A']
-    assert pileup[53] == ['A']
-    assert pileup[54] == []
-    assert pileup[55] == ['G']
-    assert pileup[56] == ['T']
-
-
-def test_get_pileup_3():
-    """
-    Tests a pileup from a read sequence with masked base in an indel.
-    """
-    a = test.test_alignment.prep_alignment()
-    ref_seq = 'ATCGCAATTGTAGAAGGACCTAGGAAGCAAAAGTTTC' \
-              'CTCTATGACGAGACGAACGTCGCTAACGAGCGACCTATAGCGTTTAAAATA' \
-              'GGATTATCGAACACCGGTAG'
-    alignments = {'read': [a]}
-
-    a.masked_read_positions = {10}
-    pileup = poligner.mask_targets.get_pileup(['read'], alignments, 'ref', ref_seq)
-    assert pileup[45] == ['C']
-    assert pileup[46] == ['G']
-    assert pileup[47] == []
-    assert pileup[48] == ['G']
-    assert pileup[49] == ['A']
-    assert pileup[50] == ['-']
-    assert pileup[51] == ['-']
-    assert pileup[52] == ['A']
-    assert pileup[53] == ['A']
-
-
-def test_get_pileup_4():
-    """
-    Tests a pileup from a read sequence with masked base in an indel.
-    """
-    a = test.test_alignment.prep_alignment()
-    ref_seq = 'ATCGCAATTGTAGAAGGACCTAGGAAGCAAAAGTTTC' \
-              'CTCTATGACGAGACGAACGTCGCTAACGAGCGACCTATAGCGTTTAAAATA' \
-              'GGATTATCGAACACCGGTAG'
-    alignments = {'read': [a]}
-
-    a.masked_read_positions = {11}
-    pileup = poligner.mask_targets.get_pileup(['read'], alignments, 'ref', ref_seq)
-    assert pileup[45] == ['C']
-    assert pileup[46] == ['G']
-    assert pileup[47] == []
-    assert pileup[48] == ['G']
-    assert pileup[49] == ['A']
-    assert pileup[50] == ['-']
-    assert pileup[51] == ['-']
-    assert pileup[52] == ['A']
-    assert pileup[53] == ['A']
-
-
-def test_get_pileup_5():
-    """
-    Tests a pileup from a read sequence with masked base in an indel.
-    """
-    a = test.test_alignment.prep_alignment()
-    ref_seq = 'ATCGCAATTGTAGAAGGACCTAGGAAGCAAAAGTTTC' \
-              'CTCTATGACGAGACGAACGTCGCTAACGAGCGACCTATAGCGTTTAAAATA' \
-              'GGATTATCGAACACCGGTAG'
-    alignments = {'read': [a]}
-
-    a.masked_read_positions = {13}
-    pileup = poligner.mask_targets.get_pileup(['read'], alignments, 'ref', ref_seq)
-    assert pileup[45] == ['C']
-    assert pileup[46] == ['G']
-    assert pileup[47] == ['AC']
-    assert pileup[48] == ['G']
-    assert pileup[49] == []
-    assert pileup[50] == []
-    assert pileup[51] == []
-    assert pileup[52] == ['A']
-    assert pileup[53] == ['A']

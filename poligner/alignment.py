@@ -91,6 +91,7 @@ def align_with_minimap2(reads, read_pair_names, target, threads):
                '--secondary=yes', '-p0.1', '-N1000000', '-t', str(threads), target, reads]
     log('  ' + ' '.join(command))
     stdout, stderr, return_code = run_command(command)
+    # TODO: check return code here
     alignments, unaligned = {}, {}
     header_lines = []
     alignment_count = 0
@@ -240,7 +241,6 @@ class Alignment(object):
         self.flags = int(self.parts[1])
         self.ref_name = self.parts[2]
         self.ref_start = int(self.parts[3]) - 1  # switch from SAM's 1-based to Python's 0-based
-        self.map_q = int(self.parts[4])
         self.cigar = self.parts[5]
         self.ref_end = get_ref_end(self.ref_start, self.cigar)
         self.read_seq = self.parts[9]
@@ -251,19 +251,8 @@ class Alignment(object):
             if p.startswith('NM:i:'):
                 self.nm_tag = int(p[5:])
 
-        # The following pieces of information are left empty for the time being. They will be
-        # filled in later as needed for multi-alignment reads.
-        self.aligned_read_seq = None
-        self.aligned_ref_seq = None
-        self.diffs = None
-        self.read_error_positions = None
-        self.ref_error_positions = None
-        self.read_positions_to_ref_positions = None
-        self.ref_positions_to_read_positions = None
-        self.masked_read_positions = set()
-
-        # We now change a few parts to make the SAM be paired in format.
-        self.parts[0] = self.parts[0][:-2]  # removed '/1' or '/2' from the read name
+        # We now change a few parts to make the SAM be in a paired-read format.
+        self.parts[0] = self.parts[0][:-2]  # remove '/1' or '/2' from the read name
         assert self.parts[6] == '*'
         self.parts[6] = '='
 
@@ -337,84 +326,6 @@ class Alignment(object):
         first_part, last_part = cigar_parts[0], cigar_parts[-1]
         return first_part[-1] == 'M' and last_part[-1] == 'M'
 
-    def add_detailed_alignment_info(self, ref_seq):
-        """
-        This function adds a lot of extra info to the alignment: aligned versions of the sequences,
-        positions of errors in both sequences and the relationship between the positions in the
-        sequences.
-
-        All read positions are stored in terms of the reference-aligned strand. E.g. if a read
-        aligned to the reverse strand of the reference, then a position of 0 according to this
-        function actually corresponds to the end of the original read sequence.
-
-        All reference positions are stored in terms of the entire reference sequence, not just the
-        aligned part. E.g. if an alignment starts at position 431 of the reference, then the first
-        position of the alignment according to this function is 431 (not 0).
-        """
-        self.aligned_read_seq, self.aligned_ref_seq, self.diffs = [], [], []
-        self.read_error_positions, self.ref_error_positions = [], []
-        self.read_positions_to_ref_positions = collections.defaultdict(list)
-        self.ref_positions_to_read_positions = collections.defaultdict(list)
-
-        expanded_cigar = get_expanded_cigar(self.cigar)
-        i, j = 0, 0
-        for c in expanded_cigar:
-            if c == 'M':
-                b_1 = self.read_seq[i]
-                b_2 = ref_seq[j]
-                if b_1 == b_2:
-                    diff = ' '
-                else:
-                    diff = '*'
-                    self.read_error_positions.append(i)
-                    self.ref_error_positions.append(j + self.ref_start)
-                self.read_positions_to_ref_positions[i].append(j + self.ref_start)
-                self.ref_positions_to_read_positions[j + self.ref_start].append(i)
-                i += 1
-                j += 1
-            elif c == 'I':
-                b_1 = self.read_seq[i]
-                b_2 = '-'
-                self.read_error_positions.append(i)
-                self.ref_error_positions.append(j + self.ref_start - 1)
-                self.read_positions_to_ref_positions[i].append(j + self.ref_start - 1)
-                self.ref_positions_to_read_positions[j + self.ref_start - 1].append(i)
-                diff = '*'
-                i += 1
-            elif c == 'D':
-                b_1 = '-'
-                b_2 = ref_seq[j]
-                self.read_error_positions.append(i - 1)
-                self.ref_error_positions.append(j + self.ref_start)
-                self.read_positions_to_ref_positions[i - 1].append(j + self.ref_start)
-                self.ref_positions_to_read_positions[j + self.ref_start].append(i - 1)
-                diff = '*'
-                j += 1
-            else:
-                assert False
-            self.aligned_read_seq.append(b_1)
-            self.aligned_ref_seq.append(b_2)
-            self.diffs.append(diff)
-        assert i == len(self.read_seq)
-        assert j == len(ref_seq)
-        self.aligned_read_seq = ''.join(self.aligned_read_seq)
-        self.aligned_ref_seq = ''.join(self.aligned_ref_seq)
-        self.diffs = ''.join(self.diffs)
-        assert self.aligned_read_seq.replace('-', '') == self.read_seq
-        assert self.aligned_ref_seq.replace('-', '') == ref_seq
-
-        # Sanity check: if there are too many mismatches, something has gone terribly wrong!
-        assert len(self.read_error_positions) < len(self.read_seq) // 2
-
-    def print_detailed_alignment_info(self):
-        """
-        For debug purposes.
-        """
-        log(self)
-        log(self.aligned_read_seq)
-        log(self.aligned_ref_seq)
-        log(self.diffs)
-
     def get_read_bases_for_each_target_base(self, ref_seq):
         expanded_cigar = get_expanded_cigar(self.cigar)
         i, j = 0, 0
@@ -457,16 +368,6 @@ def get_expanded_cigar(cigar):
         assert letter == 'M' or letter == 'D' or letter == 'I'  # no clips in end-to-end alignment
         expanded_cigar.append(letter * size)
     return ''.join(expanded_cigar)
-
-
-def flip_positions(positions, seq_length):
-    """
-    This function takes a set of positions (0-based) and flips them to the reverse strand positions.
-    """
-    flipped_positions = []
-    for p in positions[::-1]:
-        flipped_positions.append(seq_length - p - 1)
-    return flipped_positions
 
 
 def verify_no_multi_alignments(alignments, read_pair_names):

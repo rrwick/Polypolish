@@ -92,12 +92,7 @@ def get_pileup(read_names, alignments, target_name, target_seq):
             aligned_bases = a.get_read_bases_for_each_target_base(ref_seq)
             for i, bases in enumerate(aligned_bases):
                 ref_pos = a.ref_start + i
-                if a.ref_positions_to_read_positions is not None:
-                    corresponding_read_bases = a.ref_positions_to_read_positions[ref_pos]
-                else:
-                    corresponding_read_bases = set()
-                if not any(b in a.masked_read_positions for b in corresponding_read_bases):
-                    pileup[ref_pos].append(bases)
+                pileup[ref_pos].append(bases)
     return pileup
 
 
