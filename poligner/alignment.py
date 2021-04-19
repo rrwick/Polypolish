@@ -11,7 +11,6 @@ details. You should have received a copy of the GNU General Public License along
 If not, see <http://www.gnu.org/licenses/>.
 """
 
-import collections
 import pathlib
 import re
 import tempfile
@@ -20,7 +19,7 @@ from .log import log, section_header, explanation, quit_with_error
 from .misc import run_command, iterate_fastq, reverse_complement
 
 
-def align_reads(target, short1, short2, threads, max_errors):
+def align_reads(target, short1, short2, threads, max_errors, debug):
     section_header('Aligning short reads to target sequence')
     explanation('Poligner uses minimap2 to align the short reads to the target sequence. The '
                 'alignment is done in an unpaired manner, and all end-to-end alignments are kept '
@@ -32,9 +31,9 @@ def align_reads(target, short1, short2, threads, max_errors):
         log(f'  {temp_dir}')
         log()
         read_filename, read_count, read_pair_names = \
-            combine_reads_into_one_file(short1, short2,temp_dir)
+            combine_reads_into_one_file(short1, short2, temp_dir)
         alignments, header_lines, unaligned = \
-            align_with_minimap2(read_filename, read_pair_names, target, threads)
+            align_with_minimap2(read_filename, read_pair_names, target, threads, debug)
         add_secondary_read_seqs(alignments, read_pair_names)
         filter_alignments(alignments, read_pair_names, max_errors, unaligned)
         print_alignment_info(alignments, read_count, read_pair_names)
@@ -77,7 +76,7 @@ def combine_reads_into_one_file(short1, short2, temp_dir):
     return read_filename, total_count, sorted(first_names)
 
 
-def align_with_minimap2(reads, read_pair_names, target, threads):
+def align_with_minimap2(reads, read_pair_names, target, threads, debug):
     """
     Runs minimap2 to align the reads. We use minimap2 using mostly the -x sr option (short-read
     preset), but with the following changes:
@@ -91,6 +90,10 @@ def align_with_minimap2(reads, read_pair_names, target, threads):
                '--secondary=yes', '-p0.1', '-N1000000', '-t', str(threads), target, reads]
     log('  ' + ' '.join(command))
     stdout, stderr, return_code = run_command(command)
+    if debug:
+        log()
+        log(stderr)
+        log()
     # TODO: check return code here
     alignments, unaligned = {}, {}
     header_lines = []

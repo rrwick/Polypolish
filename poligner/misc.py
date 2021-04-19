@@ -15,11 +15,10 @@ import gzip
 import math
 import multiprocessing
 import os
-import pathlib
 import subprocess
 import sys
 
-from .log import log, bold_yellow
+from .log import bold_yellow
 
 
 def get_compression_type(filename):

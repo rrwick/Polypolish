@@ -34,7 +34,8 @@ def main():
     target_seqs = load_fasta(args.target)
 
     alignments, read_pair_names, read_count, header_lines, unaligned = \
-        align_reads(args.target, args.short1, args.short2, args.threads, args.max_errors)
+        align_reads(args.target, args.short1, args.short2, args.threads, args.max_errors,
+                    args.debug)
 
     insert_size_distribution = get_insert_size_distribution(alignments)
     select_alignments_using_insert_size(alignments, insert_size_distribution, read_pair_names,

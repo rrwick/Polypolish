@@ -21,12 +21,12 @@ from . import settings
 
 def get_insert_size_distribution(alignments):
     section_header('Finding insert size distribution')
-    explanation('Uniquely aligned read pairs (one alignment for the first read and one alignment '
-                'for the second read) are used to determine the insert size distribution.')
+    explanation('Cleanly aligned read pairs (one alignment for the first read and one alignment '
+                'for the second read on opposite strands) are used to determine the insert size '
+                'distribution for the read set.')
     unique_pairs = get_uniquely_aligned_pairs(alignments)
-    log(f'{len(unique_pairs):,} pairs are uniquely aligned')
     proper_pairs = get_properly_aligned_pairs(unique_pairs)
-    log(f'{len(proper_pairs):,} pairs are cleanly aligned (no indels and good orientation)')
+    log(f'{len(proper_pairs):,} read pairs are cleanly aligned (no indels and good orientation)')
     log()
     insert_sizes = []
     for alignment_1, alignment_2 in proper_pairs:
@@ -143,13 +143,14 @@ def score_insert_size(insert_size, distribution):
 
 def final_alignment_selection(alignments, distribution, read_pair_names, read_count):
 
-    section_header('Final alignment selection using insert size')
+    section_header('Final alignment selection')
     explanation('After the last round of selection, all reads with multiple alignments have a '
                 'tie between equally good alignments. Poligner now makes a final selection, '
-                'reducing each multi-alignment read to just one alignment. This final selection '
+                'keeping only one alignment for each multi-alignment read. This final selection '
                 'is made using insert size, if possible. Otherwise the kept alignment is chosen '
                 'at random.')
 
+    insert_decision_count, random_decision_count = 0, 0
     for name in read_pair_names:
         name_1, name_2 = name + '/1', name + '/2'
         alignments_1, alignments_2 = alignments[name_1], alignments[name_2]
@@ -178,13 +179,19 @@ def final_alignment_selection(alignments, distribution, read_pair_names, read_co
                     if score_insert_size(insert_size, distribution) == max_score:
                         good_pairs.append((a_1, a_2))
             assert len(good_pairs) >= 1
+            if len(good_pairs) == 1:
+                insert_decision_count += 1
+            else:
+                random_decision_count += 1
             a_1, a_2 = random.choice(good_pairs)
             alignments[name_1] = [a_1]
             alignments[name_2] = [a_2]
 
         else:
             assert False
-
+    log(f'Ties broken with insert size:   {insert_decision_count:,}')
+    log(f'Ties broken with random choice: {random_decision_count:,}')
+    log()
     print_alignment_info(alignments, read_count, read_pair_names)
 
 

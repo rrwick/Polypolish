@@ -10,6 +10,10 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public
 details. You should have received a copy of the GNU General Public License along with Poligner.
 If not, see <http://www.gnu.org/licenses/>.
 """
+
+import collections
+import statistics
+
 from .alignment import get_multi_alignment_read_names, print_alignment_info
 from .log import log, section_header, explanation
 
@@ -17,8 +21,9 @@ from .log import log, section_header, explanation
 def mask_target_sequences(alignments, target_seqs, debug):
     section_header('Masking target sequences')
     explanation('Poligner masks out any target bases which appear to be in error. It does this '
-                'tallying up all of the k-mers in the aligned reads and finding positions in the '
-                'repetitive parts of the target sequence which have unusually low k-mer depth.')
+                'by generating a pileup using all of the alignments and looking for positions '
+                'where the matching pileup bases (read bases which match the reference) total '
+                'less than half of the expected depth.')
 
     mask_positions = {}
     for target_name, target_seq in target_seqs:
@@ -32,10 +37,19 @@ def get_mask_positions(target_name, target_seq, alignments, debug):
     log(f'Masking {target_name}')
     log(f'  {len(target_seq):,} bp total')
     depths_by_pos = get_depths_by_pos(target_name, target_seq, alignments)
+    mean_depth = statistics.mean(depths_by_pos.values())
+    log(f'  mean read depth: {mean_depth:.1f}x')
+    uncovered = sum(1 if d == 0.0 else 0 for d in depths_by_pos.values())
+    coverage = 100.0 * (len(target_seq) - uncovered) / len(target_seq)
+    log(f'  {uncovered:,} bp have a depth of zero ({coverage:.3f}% coverage)')
+
     mask_positions = set()
     pileup = get_pileup(alignments, target_name, target_seq)
+    match_fraction_distribution = collections.defaultdict(int)
     if debug:
         log()
+        log('Column_1=ref_pos  Column_2=ref_base  Column_3=depth  Column_4=match_fraction  '
+            'Column_5=read_pileup')
     for i in range(len(target_seq)):
         read_bases = pileup[i]
         depth = depths_by_pos[i]
@@ -48,18 +62,42 @@ def get_mask_positions(target_name, target_seq, alignments, debug):
                 mask_positions.add(i)
             if debug:
                 result = 'FAIL' if bad_position else 'pass'
-                debug_str = f'{i}  {ref_base}  {depth}  {match_fraction:.2f}  {result}  ' \
+                debug_str = f'  {i}  {ref_base}  {depth}  {match_fraction:.5f}  {result}  ' \
                     f'{" ".join(read_bases)}'
+                match_fraction_distribution[match_fraction] += 1
                 log(debug_str)
     mask_count = len(mask_positions)
     mask_percent = 100.0 * mask_count / len(target_seq)
+    estimated_accuracy = 100.0 - mask_percent
     if debug:
-        log('\nMasked positions:')
-        log(', '.join([str(i) for i in sorted(mask_positions)]))
+        log()
+        print_match_fraction_distribution(match_fraction_distribution)
+        log('Masked positions:')
+        log('  ' + ', '.join([str(i) for i in sorted(mask_positions)]))
         log()
     log(f'  {mask_count:,} positions masked ({mask_percent:.3f}% of total positions)')
+    log(f'  estimated target sequence accuracy: {estimated_accuracy:.3f}%')
     log()
     return mask_positions
+
+
+def print_match_fraction_distribution(match_fraction_distribution):
+    step_size = 0.01
+    inverse_step = int(round(1.0 / step_size))
+    log('Distribution of match fractions over the target seq:')
+    histogram, more_than_one = collections.defaultdict(int), 0
+    for fraction, count in match_fraction_distribution.items():
+        if fraction > 1.0:
+            more_than_one += count
+        else:
+            rounded_frac = int(round(fraction * inverse_step))
+            histogram[rounded_frac] += count
+    for fraction in sorted(histogram.keys()):
+        count = histogram[fraction]
+        fraction /= inverse_step
+        log(f'   {fraction:.2f}: {count} bp')
+    log(f'  >1.00: {more_than_one} bp')
+    log()
 
 
 def get_depths_by_pos(target_name, target_seq, alignments):
@@ -89,7 +127,9 @@ def get_pileup(alignments, target_name, target_seq):
 def select_best_alignments(alignments, mask_positions, read_pair_names, read_count, target_seqs):
     section_header('Selecting best alignments')
     explanation('Poligner now chooses the best alignment(s) for each read, ignoring the masked '
-                'positions of the target sequence.')
+                'positions of the target sequence. I.e. each read\'s alignments are ranked from '
+                'fewest-errors to most-errors in unmasked positions of the reference, and only '
+                'the best alignments are kept.')
     target_seqs = dict(target_seqs)
     multi_alignment_read_names = get_multi_alignment_read_names(read_pair_names, alignments)
     for name in multi_alignment_read_names:

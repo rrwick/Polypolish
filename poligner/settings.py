@@ -16,4 +16,4 @@ If not, see <http://www.gnu.org/licenses/>.
 """
 
 
-MAX_ALLOWED_INSERT_SIZE = 10000
+MAX_ALLOWED_INSERT_SIZE = 5000
