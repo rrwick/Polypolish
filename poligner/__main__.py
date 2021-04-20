@@ -66,7 +66,7 @@ def parse_args():
                                help='Input short reads, second in pair (FASTQ format)')
 
     setting_args = parser.add_argument_group('Settings')
-    setting_args.add_argument('-m', '--max_errors', type=int, default=20,
+    setting_args.add_argument('-m', '--max_errors', type=int, default=10,
                               help='Ignore alignments with more than this number of mismatches '
                                    'and indels')
     setting_args.add_argument('-t', '--threads', type=int, default=get_default_thread_count(),

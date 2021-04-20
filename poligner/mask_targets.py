@@ -62,7 +62,7 @@ def get_mask_positions(target_name, target_seq, alignments, debug):
                 mask_positions.add(i)
             if debug:
                 result = 'FAIL' if bad_position else 'pass'
-                debug_str = f'  {i}  {ref_base}  {depth}  {match_fraction:.5f}  {result}  ' \
+                debug_str = f'  {i}  {ref_base}  {depth:.1f}  {match_fraction:.5f}  {result}  ' \
                     f'{" ".join(read_bases)}'
                 match_fraction_distribution[match_fraction] += 1
                 log(debug_str)
@@ -119,6 +119,28 @@ def get_pileup(alignments, target_name, target_seq):
                 continue
             ref_seq = target_seq[a.ref_start:a.ref_end]
             aligned_bases = a.get_read_bases_for_each_target_base(ref_seq)
+
+            # Alignments that end on in a homopolymer can cause trouble, as they can align cleanly
+            # (without an indel) even when an indel is needed.
+            #
+            # For example, an alignment should look like this:
+            #   read: ... T G A G T A C AG G G G G A A G T
+            #   ref:  ... T G A G T A C A  G G G G A A G T C C A G T ...
+            #
+            # But if the read ends in the homopolymer, it could look like this:
+            #   read: ... T G A G T A C A G G
+            #   ref:  ... T G A G T A C A G G G G A A G T C C A G T ...
+            #
+            # Which results in a clean alignment on the 'A' that should be 'AG'. To avoid this, we
+            # trim off the last couple unique bases of the alignment, so the example becomes:
+            #   read: ... T G A G T A C
+            #   ref:  ... T G A G T A C A G G G G A A G T C C A G T ...
+
+            last_base = aligned_bases[-1]
+            while aligned_bases[-1] == last_base:
+                aligned_bases.pop()
+            aligned_bases.pop()
+
             for i, bases in enumerate(aligned_bases):
                 pileup[a.ref_start + i].append(bases)
     return pileup

@@ -76,7 +76,6 @@ def test_get_pileup():
     assert pileup[83] == ['A']
     assert pileup[84] == ['A']
     assert pileup[85] == ['A']
-    assert pileup[86] == ['T']
-    assert pileup[87] == ['A']
-    for i in range(88, 108):
+    # Last couple bases are trimmed off.
+    for i in range(86, 108):
         assert pileup[i] == []
