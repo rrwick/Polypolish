@@ -36,25 +36,28 @@ def mask_target_sequences(alignments, target_seqs, debug):
 def get_mask_positions(target_name, target_seq, alignments, debug):
     log(f'Masking {target_name}')
     log(f'  {len(target_seq):,} bp total')
-    depths_by_pos = get_depths_by_pos(target_name, target_seq, alignments)
+
+    mask_positions = set()
+    pileup, depths_by_pos = get_pileup(alignments, target_name, target_seq)
     mean_depth = statistics.mean(depths_by_pos.values())
     log(f'  mean read depth: {mean_depth:.1f}x')
     uncovered = sum(1 if d == 0.0 else 0 for d in depths_by_pos.values())
     coverage = 100.0 * (len(target_seq) - uncovered) / len(target_seq)
     log(f'  {uncovered:,} bp have a depth of zero ({coverage:.3f}% coverage)')
 
-    mask_positions = set()
-    pileup = get_pileup(alignments, target_name, target_seq)
     match_fraction_distribution = collections.defaultdict(int)
     if debug:
         log()
         log('Column_1=ref_pos  Column_2=ref_base  Column_3=depth  Column_4=match_fraction  '
             'Column_5=read_pileup')
     for i in range(len(target_seq)):
-        read_bases = pileup[i]
+        read_base_counts = pileup[i]
         depth = depths_by_pos[i]
         ref_base = target_seq[i]
-        match_count = sum(1 if b == ref_base else 0 for b in read_bases)
+        if ref_base in read_base_counts:
+            match_count = read_base_counts[ref_base]
+        else:
+            match_count = 0
         if depth > 0.0:
             match_fraction = match_count / depth
             bad_position = match_fraction < 0.5
@@ -62,8 +65,9 @@ def get_mask_positions(target_name, target_seq, alignments, debug):
                 mask_positions.add(i)
             if debug:
                 result = 'FAIL' if bad_position else 'pass'
+                count_str = ', '.join([f'{b}x{c}' for b, c in read_base_counts.items()])
                 debug_str = f'  {i}  {ref_base}  {depth:.1f}  {match_fraction:.5f}  {result}  ' \
-                    f'{" ".join(read_bases)}'
+                    f'{count_str}'
                 match_fraction_distribution[match_fraction] += 1
                 log(debug_str)
     mask_count = len(mask_positions)
@@ -100,25 +104,16 @@ def print_match_fraction_distribution(match_fraction_distribution):
     log()
 
 
-def get_depths_by_pos(target_name, target_seq, alignments):
-    depths_by_pos = {i: 0.0 for i in range(len(target_seq))}
-    for _, read_alignments in alignments.items():
-        for a in read_alignments:
-            if a.ref_name == target_name:
-                depth_contribution = 1.0 / len(read_alignments)
-                for i in range(a.ref_start, a.ref_end):
-                    depths_by_pos[i] += depth_contribution
-    return depths_by_pos
-
-
 def get_pileup(alignments, target_name, target_seq):
-    pileup = {i: [] for i in range(len(target_seq))}
+    pileup = {i: {} for i in range(len(target_seq))}
+    depths_by_pos = {i: 0.0 for i in range(len(target_seq))}
     for _, read_alignments in alignments.items():
         for a in read_alignments:
             if a.ref_name != target_name:
                 continue
             ref_seq = target_seq[a.ref_start:a.ref_end]
             aligned_bases = a.get_read_bases_for_each_target_base(ref_seq)
+            depth_contribution = 1.0 / len(read_alignments)
 
             # Alignments that end on in a homopolymer can cause trouble, as they can align cleanly
             # (without an indel) even when an indel is needed.
@@ -142,8 +137,12 @@ def get_pileup(alignments, target_name, target_seq):
             aligned_bases.pop()
 
             for i, bases in enumerate(aligned_bases):
-                pileup[a.ref_start + i].append(bases)
-    return pileup
+                if bases in pileup[a.ref_start + i]:
+                    pileup[a.ref_start + i][bases] += 1
+                else:
+                    pileup[a.ref_start + i][bases] = 1
+                depths_by_pos[a.ref_start + i] += depth_contribution
+    return pileup, depths_by_pos
 
 
 def select_best_alignments(alignments, mask_positions, read_pair_names, read_count, target_seqs):

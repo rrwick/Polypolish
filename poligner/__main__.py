@@ -30,7 +30,7 @@ from .version import __version__
 def main():
     check_python_version()
     args = parse_args()
-    random.seed(0)
+    random.seed(args.seed)
     target_seqs = load_fasta(args.target)
 
     alignments, read_pair_names, read_count, header_lines, unaligned = \
@@ -69,6 +69,8 @@ def parse_args():
     setting_args.add_argument('-m', '--max_errors', type=int, default=10,
                               help='Ignore alignments with more than this number of mismatches '
                                    'and indels')
+    setting_args.add_argument('-s', '--seed', type=int, default=0,
+                              help='Seed for random number generator')
     setting_args.add_argument('-t', '--threads', type=int, default=get_default_thread_count(),
                               help='Number of threads')
 

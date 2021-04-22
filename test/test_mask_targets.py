@@ -24,58 +24,58 @@ def test_get_pileup():
               'CTCTATGACGAGACGAACGTCGCTAACGAGCGACCTATAGCGTTTAAAATA' \
               'GGATTATCGAACACCGGTAG'
     alignments = {'read': [a]}
-    pileup = poligner.mask_targets.get_pileup(alignments, 'ref', ref_seq)
+    pileup, _ = poligner.mask_targets.get_pileup(alignments, 'ref', ref_seq)
     for i in range(37):
-        assert pileup[i] == []
-    assert pileup[37] == ['C']
-    assert pileup[38] == ['T']
-    assert pileup[39] == ['C']
-    assert pileup[40] == ['T']
-    assert pileup[41] == ['A']
-    assert pileup[42] == ['T']
-    assert pileup[43] == ['G']
-    assert pileup[44] == ['A']
-    assert pileup[45] == ['C']
-    assert pileup[46] == ['G']
-    assert pileup[47] == ['AC']
-    assert pileup[48] == ['G']
-    assert pileup[49] == ['A']
-    assert pileup[50] == ['-']
-    assert pileup[51] == ['-']
-    assert pileup[52] == ['A']
-    assert pileup[53] == ['A']
-    assert pileup[54] == ['C']
-    assert pileup[55] == ['G']
-    assert pileup[56] == ['T']
-    assert pileup[57] == ['C']
-    assert pileup[58] == ['G']
-    assert pileup[59] == ['C']
-    assert pileup[60] == ['T']
-    assert pileup[61] == ['CTGT']
-    assert pileup[62] == ['A']
-    assert pileup[63] == ['C']
-    assert pileup[64] == ['G']
-    assert pileup[65] == ['A']
-    assert pileup[66] == ['G']
-    assert pileup[67] == ['C']
-    assert pileup[68] == ['G']
-    assert pileup[69] == ['A']
-    assert pileup[70] == ['C']
-    assert pileup[71] == ['-']
-    assert pileup[72] == ['T']
-    assert pileup[73] == ['A']
-    assert pileup[74] == ['T']
-    assert pileup[75] == ['A']
-    assert pileup[76] == ['G']
-    assert pileup[77] == ['C']
-    assert pileup[78] == ['G']
-    assert pileup[79] == ['T']
-    assert pileup[80] == ['T']
-    assert pileup[81] == ['-']
-    assert pileup[82] == ['A']
-    assert pileup[83] == ['A']
-    assert pileup[84] == ['A']
-    assert pileup[85] == ['A']
+        assert pileup[i] == {}
+    assert pileup[37] == {'C': 1}
+    assert pileup[38] == {'T': 1}
+    assert pileup[39] == {'C': 1}
+    assert pileup[40] == {'T': 1}
+    assert pileup[41] == {'A': 1}
+    assert pileup[42] == {'T': 1}
+    assert pileup[43] == {'G': 1}
+    assert pileup[44] == {'A': 1}
+    assert pileup[45] == {'C': 1}
+    assert pileup[46] == {'G': 1}
+    assert pileup[47] == {'AC': 1}
+    assert pileup[48] == {'G': 1}
+    assert pileup[49] == {'A': 1}
+    assert pileup[50] == {'-': 1}
+    assert pileup[51] == {'-': 1}
+    assert pileup[52] == {'A': 1}
+    assert pileup[53] == {'A': 1}
+    assert pileup[54] == {'C': 1}
+    assert pileup[55] == {'G': 1}
+    assert pileup[56] == {'T': 1}
+    assert pileup[57] == {'C': 1}
+    assert pileup[58] == {'G': 1}
+    assert pileup[59] == {'C': 1}
+    assert pileup[60] == {'T': 1}
+    assert pileup[61] == {'CTGT': 1}
+    assert pileup[62] == {'A': 1}
+    assert pileup[63] == {'C': 1}
+    assert pileup[64] == {'G': 1}
+    assert pileup[65] == {'A': 1}
+    assert pileup[66] == {'G': 1}
+    assert pileup[67] == {'C': 1}
+    assert pileup[68] == {'G': 1}
+    assert pileup[69] == {'A': 1}
+    assert pileup[70] == {'C': 1}
+    assert pileup[71] == {'-': 1}
+    assert pileup[72] == {'T': 1}
+    assert pileup[73] == {'A': 1}
+    assert pileup[74] == {'T': 1}
+    assert pileup[75] == {'A': 1}
+    assert pileup[76] == {'G': 1}
+    assert pileup[77] == {'C': 1}
+    assert pileup[78] == {'G': 1}
+    assert pileup[79] == {'T': 1}
+    assert pileup[80] == {'T': 1}
+    assert pileup[81] == {'-': 1}
+    assert pileup[82] == {'A': 1}
+    assert pileup[83] == {'A': 1}
+    assert pileup[84] == {'A': 1}
+    assert pileup[85] == {'A': 1}
     # Last couple bases are trimmed off.
     for i in range(86, 108):
-        assert pileup[i] == []
+        assert pileup[i] == {}
