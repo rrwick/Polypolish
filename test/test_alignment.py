@@ -1,25 +1,25 @@
 """
-This module contains some tests for Poligner. To run them, execute `pytest` from the root Poligner
+This module contains some tests for Maskimap. To run them, execute `pytest` from the root Maskimap
 directory.
 
 Copyright 2021 Ryan Wick (rrwick@gmail.com)
-https://github.com/rrwick/Poligner
+https://github.com/rrwick/Maskimap
 
-This file is part of Poligner. Poligner is free software: you can redistribute it and/or modify
+This file is part of Maskimap. Maskimap is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by the Free Software Foundation,
-either version 3 of the License, or (at your option) any later version. Poligner is distributed
+either version 3 of the License, or (at your option) any later version. Maskimap is distributed
 in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more
-details. You should have received a copy of the GNU General Public License along with Poligner.
+details. You should have received a copy of the GNU General Public License along with Maskimap.
 If not, see <http://www.gnu.org/licenses/>.
 """
 
-import poligner.alignment
+import maskimap.alignment
 
 
 def test_flags_1():
     flags = 345
-    a = poligner.alignment.Alignment(f'read\t{flags}\tref\t0\t0\t4M\t*\t0\t0\tACGT\tAAAA\tNM:i:0')
+    a = maskimap.alignment.Alignment(f'read\t{flags}\tref\t0\t0\t4M\t*\t0\t0\tACGT\tAAAA\tNM:i:0')
     assert a.has_flag(1)
     assert not a.has_flag(2)
     assert not a.has_flag(4)
@@ -36,7 +36,7 @@ def test_flags_1():
 
 def test_flags_2():
     flags = 1044
-    a = poligner.alignment.Alignment(f'read\t{flags}\tref\t0\t0\t4M\t*\t0\t0\tACGT\tAAAA\tNM:i:0')
+    a = maskimap.alignment.Alignment(f'read\t{flags}\tref\t0\t0\t4M\t*\t0\t0\tACGT\tAAAA\tNM:i:0')
     assert not a.has_flag(1)
     assert not a.has_flag(2)
     assert a.has_flag(4)
@@ -52,11 +52,11 @@ def test_flags_2():
 
 
 def test_ref_end_1():
-    assert poligner.alignment.get_ref_end(100, '100M') == 200
+    assert maskimap.alignment.get_ref_end(100, '100M') == 200
 
 
 def test_ref_end_2():
-    assert poligner.alignment.get_ref_end(1000, '10M3D8M4I10M') == 1031
+    assert maskimap.alignment.get_ref_end(1000, '10M3D8M4I10M') == 1031
 
 
 def prep_alignment():
@@ -78,7 +78,7 @@ def prep_alignment():
     read_seq = 'CTCTATGACGACGAAACGTCGCTCTGTACGAGCGACTATAGCGTTAAAATA'
     read_qual = 'A' * len(read_seq)
 
-    a = poligner.alignment.Alignment(f'read\t0\tref\t{ref_start+1}\t0\t{cigar}\t*\t0\t0\t'
+    a = maskimap.alignment.Alignment(f'read\t0\tref\t{ref_start+1}\t0\t{cigar}\t*\t0\t0\t'
                                      f'{read_seq}\t{read_qual}\tNM:i:0')
     return a
 

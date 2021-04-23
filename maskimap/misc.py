@@ -1,13 +1,13 @@
 """
 Copyright 2021 Ryan Wick (rrwick@gmail.com)
-https://github.com/rrwick/Poligner
+https://github.com/rrwick/Maskimap
 
-This file is part of Poligner. Poligner is free software: you can redistribute it and/or modify
+This file is part of Maskimap. Maskimap is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by the Free Software Foundation,
-either version 3 of the License, or (at your option) any later version. Poligner is distributed
+either version 3 of the License, or (at your option) any later version. Maskimap is distributed
 in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more
-details. You should have received a copy of the GNU General Public License along with Poligner.
+details. You should have received a copy of the GNU General Public License along with Maskimap.
 If not, see <http://www.gnu.org/licenses/>.
 """
 
@@ -147,18 +147,18 @@ def reverse_complement(seq):
 
 def check_python_version():
     if sys.version_info.major < 3 or sys.version_info.minor < 6:
-        sys.exit('\nError: Poligner requires Python 3.6 or later')
+        sys.exit('\nError: Maskimap requires Python 3.6 or later')
 
 
 def get_ascii_art():
-    ascii_art = (bold_yellow(r" _____        _  _") + '\n' +
-                 bold_yellow(r"|  __ \      | |(_)") + '\n' +
-                 bold_yellow(r"| |__) |___  | | _   __ _  _ __    ___  _ __") + '\n' +
-                 bold_yellow(r"|  ___// _ \ | || | / _` || '_ \  / _ \| '__|") + '\n' +
-                 bold_yellow(r"| |   | (_) || || || (_| || | | ||  __/| |") + '\n' +
-                 bold_yellow(r"|_|    \___/ |_||_| \__, ||_| |_| \___||_|") + '\n' +
-                 bold_yellow(r"                     __/ |") + '\n' +
-                 bold_yellow(r"                    |___/") + '\n')
+    ascii_art = (bold_yellow(r"  __  __              _     _") + '\n' +
+                 bold_yellow(r" |  \/  |            | |   (_)") + '\n' +
+                 bold_yellow(r" | \  / |  __ _  ___ | | __ _  _ __ ___    __ _  _ __") + '\n' +
+                 bold_yellow(r" | |\/| | / _` |/ __|| |/ /| || '_ ` _ \  / _` || '_ "'\\') + '\n' +
+                 bold_yellow(r" | |  | || (_| |\__ \|   < | || | | | | || (_| || |_) |") + '\n' +
+                 bold_yellow(r" |_|  |_| \__,_||___/|_|\_\|_||_| |_| |_| \__,_|| .__/") + '\n' +
+                 bold_yellow(r"                                                | |") + '\n' +
+                 bold_yellow(r"                                                |_|") + '\n')
     return ascii_art
 
 

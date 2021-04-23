@@ -1,13 +1,13 @@
 """
 Copyright 2021 Ryan Wick (rrwick@gmail.com)
-https://github.com/rrwick/Poligner
+https://github.com/rrwick/Maskimap
 
-This file is part of Poligner. Poligner is free software: you can redistribute it and/or modify
+This file is part of Maskimap. Maskimap is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by the Free Software Foundation,
-either version 3 of the License, or (at your option) any later version. Poligner is distributed
+either version 3 of the License, or (at your option) any later version. Maskimap is distributed
 in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more
-details. You should have received a copy of the GNU General Public License along with Poligner.
+details. You should have received a copy of the GNU General Public License along with Maskimap.
 If not, see <http://www.gnu.org/licenses/>.
 """
 
@@ -20,7 +20,7 @@ from .log import log, section_header, explanation
 
 def mask_target_sequences(alignments, target_seqs, debug):
     section_header('Masking target sequences')
-    explanation('Poligner masks out any target bases which appear to be in error. It does this '
+    explanation('Maskimap masks out any target bases which appear to be in error. It does this '
                 'by generating a pileup using all of the alignments and looking for positions '
                 'where the matching pileup bases (read bases which match the reference) total '
                 'less than half of the expected depth.')
@@ -147,7 +147,7 @@ def get_pileup(alignments, target_name, target_seq):
 
 def select_best_alignments(alignments, mask_positions, read_pair_names, read_count, target_seqs):
     section_header('Selecting best alignments')
-    explanation('Poligner now chooses the best alignment(s) for each read, ignoring the masked '
+    explanation('Maskimap now chooses the best alignment(s) for each read, ignoring the masked '
                 'positions of the target sequence. I.e. each read\'s alignments are ranked from '
                 'fewest-errors to most-errors in unmasked positions of the reference, and only '
                 'the best alignments are kept.')

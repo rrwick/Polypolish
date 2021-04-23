@@ -1,13 +1,13 @@
 """
 Copyright 2021 Ryan Wick (rrwick@gmail.com)
-https://github.com/rrwick/Poligner
+https://github.com/rrwick/Maskimap
 
-This file is part of Poligner. Poligner is free software: you can redistribute it and/or modify
+This file is part of Maskimap. Maskimap is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by the Free Software Foundation,
-either version 3 of the License, or (at your option) any later version. Poligner is distributed
+either version 3 of the License, or (at your option) any later version. Maskimap is distributed
 in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more
-details. You should have received a copy of the GNU General Public License along with Poligner.
+details. You should have received a copy of the GNU General Public License along with Maskimap.
 If not, see <http://www.gnu.org/licenses/>.
 """
 
@@ -81,8 +81,8 @@ def select_alignments_using_insert_size(alignments, distribution, read_pair_name
     pair with a good insert size.
     """
     section_header('Selecting alignments using insert size')
-    explanation('Poligner now filters alignments using insert size. Whenever there is a read pair '
-                'with multiple possible combinations, Poligner will discard any alignments that '
+    explanation('Maskimap now filters alignments using insert size. Whenever there is a read pair '
+                'with multiple possible combinations, Maskimap will discard any alignments that '
                 'do not appear to be part of a combination with a valid insert size.')
 
     for name in read_pair_names:
@@ -145,7 +145,7 @@ def final_alignment_selection(alignments, distribution, read_pair_names, read_co
 
     section_header('Final alignment selection')
     explanation('After the last round of selection, all reads with multiple alignments have a '
-                'tie between equally good alignments. Poligner now makes a final selection, '
+                'tie between equally good alignments. Maskimap now makes a final selection, '
                 'keeping only one alignment for each multi-alignment read. This final selection '
                 'is made using insert size, if possible. Otherwise the kept alignment is chosen '
                 'at random.')
