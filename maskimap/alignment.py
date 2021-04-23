@@ -201,16 +201,23 @@ def print_alignment_info(alignments, read_count, read_pair_names):
             assert count_1 > 1 or count_2 > 1
             multi_pair_count += 1
 
-    log(f'  {alignment_count:,} alignments')
+    plural = '' if alignment_count == 1 else 's'
+    log(f'  {alignment_count:,} alignment{plural}')
     number_size = len(f'{alignment_count:,}')
     log()
-    log(f'  {f"{zero_count:,}".rjust(number_size)} reads have no alignments')
-    log(f'  {f"{single_count:,}".rjust(number_size)} reads have one alignment')
-    log(f'  {f"{multi_count:,}".rjust(number_size)} reads have multiple alignments')
+    reads_have = 'read has' if zero_count == 1 else 'reads have'
+    log(f'  {f"{zero_count:,}".rjust(number_size)} {reads_have} no alignments')
+    reads_have = 'read has' if single_count == 1 else 'reads have'
+    log(f'  {f"{single_count:,}".rjust(number_size)} {reads_have} one alignment')
+    reads_have = 'read has' if multi_count == 1 else 'reads have'
+    log(f'  {f"{multi_count:,}".rjust(number_size)} {reads_have} multiple alignments')
     log()
-    log(f'  {f"{incomplete_pair_count:,}".rjust(number_size)} read pairs are incomplete')
-    log(f'  {f"{unique_pair_count:,}".rjust(number_size)} read pairs are uniquely aligned')
-    log(f'  {f"{multi_pair_count:,}".rjust(number_size)} read pairs have multiple combinations')
+    read_pairs_are = 'read pair is' if incomplete_pair_count == 1 else 'read pairs are'
+    log(f'  {f"{incomplete_pair_count:,}".rjust(number_size)} {read_pairs_are} incomplete')
+    read_pairs_are = 'read pair is' if unique_pair_count == 1 else 'read pairs are'
+    log(f'  {f"{unique_pair_count:,}".rjust(number_size)} {read_pairs_are} uniquely aligned')
+    read_pairs_have = 'read pair has' if multi_pair_count == 1 else 'read pairs have'
+    log(f'  {f"{multi_pair_count:,}".rjust(number_size)} {read_pairs_have} multiple combinations')
     log()
     assert read_count == zero_count + single_count + multi_count
     assert read_count // 2 == incomplete_pair_count + unique_pair_count + multi_pair_count

@@ -43,7 +43,8 @@ def get_mask_positions(target_name, target_seq, alignments, debug):
     log(f'  mean read depth: {mean_depth:.1f}x')
     uncovered = sum(1 if d == 0.0 else 0 for d in depths_by_pos.values())
     coverage = 100.0 * (len(target_seq) - uncovered) / len(target_seq)
-    log(f'  {uncovered:,} bp have a depth of zero ({coverage:.3f}% coverage)')
+    have = 'has' if uncovered == 1 else 'have'
+    log(f'  {uncovered:,} bp {have} a depth of zero ({coverage:.3f}% coverage)')
 
     match_fraction_distribution = collections.defaultdict(int)
     if debug:
@@ -79,7 +80,8 @@ def get_mask_positions(target_name, target_seq, alignments, debug):
         log('Masked positions:')
         log('  ' + ', '.join([str(i) for i in sorted(mask_positions)]))
         log()
-    log(f'  {mask_count:,} positions masked ({mask_percent:.3f}% of total positions)')
+    positions = 'position' if mask_count == 1 else 'positions'
+    log(f'  {mask_count:,} {positions} masked ({mask_percent:.3f}% of total positions)')
     log(f'  estimated target sequence accuracy: {estimated_accuracy:.3f}%')
     log()
     return mask_positions
