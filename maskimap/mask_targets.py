@@ -111,7 +111,7 @@ def get_pileup(alignments, target_name, target_seq):
     depths_by_pos = {i: 0.0 for i in range(len(target_seq))}
     for _, read_alignments in alignments.items():
         for a in read_alignments:
-            if a.ref_name != target_name:
+            if a.get_ref_name() != target_name:
                 continue
             ref_seq = target_seq[a.ref_start:a.ref_end]
             aligned_bases = a.get_read_bases_for_each_target_base(ref_seq)
@@ -170,13 +170,14 @@ def choose_best_alignments_one_read(read_alignments, mask_positions, target_seqs
     best_error_count = None
     best_alignments = []
     for a in read_alignments:
-        ref_seq = target_seqs[a.ref_name][a.ref_start:a.ref_end]
+        ref_name = a.get_ref_name()
+        ref_seq = target_seqs[ref_name][a.ref_start:a.ref_end]
         ref_range = list(range(a.ref_start, a.ref_end))
         aligned_bases = a.get_read_bases_for_each_target_base(ref_seq)
         assert len(ref_seq) == len(ref_range) == len(aligned_bases)
         error_count = 0
         for i, ref_base, read_base in zip(ref_range, ref_seq, aligned_bases):
-            if ref_base != read_base and i not in mask_positions[a.ref_name]:
+            if ref_base != read_base and i not in mask_positions[ref_name]:
                 error_count += 1
         if best_error_count is None or error_count < best_error_count:  # new best
             best_error_count = error_count

@@ -107,10 +107,10 @@ def align_with_minimap2(reads, read_pair_names, target, threads, debug):
             continue
         alignment = Alignment(line)
         if alignment.is_aligned():
-            alignments[alignment.read_name].append(alignment)
+            alignments[alignment.get_read_name()].append(alignment)
             alignment_count += 1
         else:
-            unaligned[alignment.read_name] = alignment
+            unaligned[alignment.get_read_name()] = alignment
 
     log(f'  {alignment_count:,} total alignments')
     log()
@@ -128,16 +128,18 @@ def add_secondary_read_seqs(alignments, read_pair_names):
             continue
         seq, qual = None, None
         for a in alignments[name]:
+            read_seq = a.get_read_seq()
+            read_qual = a.get_read_qual()
             if a.is_secondary():
-                assert a.read_seq == '*' and a.read_qual == '*'
+                assert read_seq == '*' and read_qual == '*'
             else:
-                assert a.read_seq != '*' and a.read_qual != '*'
+                assert read_seq != '*' and read_qual != '*'
                 if a.is_on_forward_strand():
-                    seq = a.read_seq
-                    qual = a.read_qual
+                    seq = read_seq
+                    qual = read_qual
                 else:
-                    seq = reverse_complement(a.read_seq)
-                    qual = a.read_qual[::-1]
+                    seq = reverse_complement(read_seq)
+                    qual = read_qual[::-1]
                 break
         assert seq is not None and qual is not None
         for a in alignments[name]:
@@ -149,7 +151,7 @@ def add_secondary_read_seqs(alignments, read_pair_names):
                     a.set_read_seq(reverse_complement(seq))
                     a.set_read_qual(qual[::-1])
         for a in alignments[name]:
-            assert a.read_seq != '*' and a.read_qual != '*'
+            assert a.get_read_seq() != '*' and a.get_read_qual() != '*'
 
 
 def filter_alignments(alignments, read_pair_names, max_errors, unaligned):
@@ -247,14 +249,21 @@ class Alignment(object):
         if len(self.parts) < 11:
             quit_with_error('\nError: alignment file does not seem to be in SAM format')
 
-        self.read_name = self.parts[0]
-        self.flags = int(self.parts[1])
-        self.ref_name = self.parts[2]
+        # self.parts[0]:  read name
+        # self.parts[1]:  SAM flags
+        # self.parts[2]:  ref name
+        # self.parts[3]:  ref start (1-based)
+        # self.parts[4]:  mapq
+        # self.parts[5]:  cigar
+        # self.parts[6]:  rnext
+        # self.parts[7]:  pnext
+        # self.parts[8]:  tlen
+        # self.parts[9]:  read seq
+        # self.parts[10]: read qual
+
         self.ref_start = int(self.parts[3]) - 1  # switch from SAM's 1-based to Python's 0-based
         self.cigar = self.parts[5]
         self.ref_end = get_ref_end(self.ref_start, self.cigar)
-        self.read_seq = self.parts[9]
-        self.read_qual = self.parts[10]
 
         self.nm_tag = None
         for p in self.parts:
@@ -262,15 +271,11 @@ class Alignment(object):
                 self.nm_tag = int(p[5:])
 
         # We now change a few parts to make the SAM be in a paired-read format.
-        self.parts[0] = self.parts[0][:-2]  # remove '/1' or '/2' from the read name
         assert self.parts[6] == '*'
         self.parts[6] = '='
 
     def __repr__(self):
-        return f'{self.read_name}:{self.ref_name}:{self.ref_start}-{self.ref_end}:{self.nm_tag}'
-
-    def has_flag(self, flag: int):
-        return bool(self.flags & flag)
+        return f'{self.get_read_name()}:{self.get_ref_name()}:{self.ref_start}-{self.ref_end}:{self.nm_tag}'
 
     def is_aligned(self):
         return not self.has_flag(4)
@@ -284,12 +289,25 @@ class Alignment(object):
     def is_on_forward_strand(self):
         return not self.has_flag(16)
 
+    def get_flags(self):
+        return int(self.parts[1])
+
     def set_flags(self, flags):
-        self.flags = flags
         self.parts[1] = str(flags)
 
+    def has_flag(self, flag: int):
+        return bool(self.get_flags() & flag)
+
+    def get_read_name(self):
+        return self.parts[0]
+
+    def get_read_name_without_1_2(self):
+        return self.parts[0][:-2]
+
+    def get_ref_name(self):
+        return self.parts[2]
+
     def set_ref_name(self, ref_name):
-        self.ref_name = ref_name
         self.parts[2] = ref_name
 
     def set_ref_start(self, ref_start):
@@ -312,21 +330,26 @@ class Alignment(object):
     def set_tlen(self, tlen):
         self.parts[8] = str(tlen)
 
+    def get_read_seq(self):
+        return self.parts[9]
+
     def set_read_seq(self, seq):
-        self.read_seq = seq
         self.parts[9] = seq
 
+    def get_read_qual(self):
+        return self.parts[10]
+
     def set_read_qual(self, qual):
-        self.read_qual = qual
         self.parts[10] = qual
 
     def make_unaligned(self):
-        self.flags = 5  # read paired (1) and read unmapped (4)
+        self.set_flags(5)  # read paired (1) and read unmapped (4)
         self.set_mapq(0)
         self.set_cigar('*')
 
     def get_sam_line(self):
-        return '\t'.join(self.parts)
+        sam_parts = [self.get_read_name_without_1_2()] + self.parts[1:]
+        return '\t'.join(sam_parts)
 
     def has_no_indels(self):
         return self.cigar.endswith('M') and self.cigar[:-1].isdigit()
@@ -340,18 +363,19 @@ class Alignment(object):
         expanded_cigar = get_expanded_cigar(self.cigar)
         i = 0
         read_bases = []
+        read_seq = self.get_read_seq()
         for c in expanded_cigar:
             if c == 'M':
-                read_bases.append(self.read_seq[i])
+                read_bases.append(read_seq[i])
                 i += 1
             elif c == 'I':
-                read_bases[-1] += self.read_seq[i]
+                read_bases[-1] += read_seq[i]
                 i += 1
             elif c == 'D':
                 read_bases.append('-')
             else:
                 assert False
-        assert i == len(self.read_seq)
+        assert i == len(read_seq)
         assert len(read_bases) == len(ref_seq)
         return read_bases
 
@@ -405,14 +429,14 @@ def fix_sam_pairing(alignments, unaligned, read_pair_names):
 
         # If only the first read in the pair aligned:
         elif alignments_1 and not alignments_2:
-            unaligned[name_2].set_ref_name(alignments_1[0].ref_name)
+            unaligned[name_2].set_ref_name(alignments_1[0].get_ref_name())
             unaligned[name_2].set_ref_start(alignments_1[0].ref_start)
             unaligned[name_2].set_pnext(alignments_1[0].ref_start)
             alignments_1[0].set_pnext(alignments_1[0].ref_start)
 
         # If only the second read in the pair aligned:
         elif not alignments_1 and alignments_2:
-            unaligned[name_1].set_ref_name(alignments_2[0].ref_name)
+            unaligned[name_1].set_ref_name(alignments_2[0].get_ref_name())
             unaligned[name_1].set_ref_start(alignments_2[0].ref_start)
             unaligned[name_1].set_pnext(alignments_2[0].ref_start)
             alignments_2[0].set_pnext(alignments_2[0].ref_start)
