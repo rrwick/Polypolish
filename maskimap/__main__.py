@@ -21,15 +21,16 @@ from .alignment import align_reads, output_alignments_to_stdout, verify_no_multi
 from .help_formatter import MyParser, MyHelpFormatter
 from .insert_size import get_insert_size_distribution, select_alignments_using_insert_size, \
     final_alignment_selection, set_sam_flags
-from .log import bold
+from .log import log, bold, section_header, explanation
 from .mask_targets import mask_target_sequences, select_best_alignments
-from .misc import get_default_thread_count, check_python_version, get_ascii_art, load_fasta
+from .misc import get_default_thread_count, get_ascii_art, load_fasta
+from .software import check_python, check_minimap2
 from .version import __version__
 
 
 def main():
-    check_python_version()
     args = parse_args()
+    starting_message(args)
     random.seed(args.seed)
     target_seqs = load_fasta(args.target)
 
@@ -89,6 +90,33 @@ def parse_args():
         sys.exit(1)
 
     return parser.parse_args()
+
+
+def starting_message(args):
+    section_header('Starting Maskimap')
+    explanation('Maskimap is a paired-end read aligner which aims to produce high-quality '
+                'alignments for polishing. Specifically, it takes as input paired-end short reads '
+                'and a haploid genome assembly to be polished (e.g. a long-read assembly). '
+                'Instead of simply aligning each read to its best location (as most aligners do), '
+                'it aims to align reads to where they will be most useful for polishing.')
+    log(f'Maskimap version: v{__version__}')
+    log(f'Using {args.threads} threads')
+    log()
+    log('Input short reads:')
+    log(f'  {args.short1}')
+    log(f'  {args.short2}')
+    log()
+    log('Target sequence:')
+    log(f'  {args.target}')
+    log()
+    check_requirements()
+    log()
+
+
+def check_requirements():
+    log('Checking requirements:')
+    check_python()
+    check_minimap2()
 
 
 if __name__ == '__main__':

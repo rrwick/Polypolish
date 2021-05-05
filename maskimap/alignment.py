@@ -275,7 +275,8 @@ class Alignment(object):
         self.parts[6] = '='
 
     def __repr__(self):
-        return f'{self.get_read_name()}:{self.get_ref_name()}:{self.ref_start}-{self.ref_end}:{self.nm_tag}'
+        return f'{self.get_read_name()}:{self.get_ref_name()}:{self.ref_start}-{self.ref_end}:' \
+            f'{self.nm_tag}'
 
     def is_aligned(self):
         return not self.has_flag(4)

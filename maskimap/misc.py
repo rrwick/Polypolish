@@ -145,11 +145,6 @@ def reverse_complement(seq):
     return ''.join([complement_base(x) for x in seq][::-1])
 
 
-def check_python_version():
-    if sys.version_info.major < 3 or sys.version_info.minor < 6:
-        sys.exit('\nError: Maskimap requires Python 3.6 or later')
-
-
 def get_ascii_art():
     ascii_art = (bold_yellow(r"  __  __              _     _") + '\n' +
                  bold_yellow(r" |  \/  |            | |   (_)") + '\n' +

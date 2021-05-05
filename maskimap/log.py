@@ -55,6 +55,10 @@ def dim(text):
     return DIM + text + END_FORMATTING
 
 
+def green(text):
+    return GREEN + text + END_FORMATTING
+
+
 def red(text):
     return RED + text + END_FORMATTING
 
