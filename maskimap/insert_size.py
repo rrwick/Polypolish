@@ -118,6 +118,7 @@ def select_good_alignments(alignments_1, alignments_2, distribution):
             score = score_insert_size(insert_size, distribution)
             if score >= threshold_score:
                 in_a_good_pair = True
+                break
         if in_a_good_pair:
             good_alignments.append(a_1)
     return good_alignments
