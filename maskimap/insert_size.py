@@ -90,37 +90,32 @@ def select_alignments_using_insert_size(alignments, distribution, read_pair_name
         alignments_1, alignments_2 = alignments[name_1], alignments[name_2]
         count_1, count_2 = len(alignments_1), len(alignments_2)
         if count_1 >= 1 and count_2 >= 1 and count_1+count_2 >= 3:
-            good_1 = select_good_alignments(alignments_1, alignments_2, distribution)
-            good_2 = select_good_alignments(alignments_2, alignments_1, distribution)
+            all_scores = []
+            for a_1 in alignments_1:
+                for a_2 in alignments_2:
+                    all_scores.append(score_insert_size(get_insert_size(a_1, a_2), distribution))
+            min_score = max(all_scores) - 2
+            good_1 = select_good_alignments(alignments_1, alignments_2, distribution, min_score)
+            good_2 = select_good_alignments(alignments_2, alignments_1, distribution, min_score)
             alignments[name_1] = good_1
             alignments[name_2] = good_2
 
     print_alignment_info(alignments, read_count, read_pair_names)
 
 
-def select_good_alignments(alignments_1, alignments_2, distribution):
+def select_good_alignments(alignments_1, alignments_2, distribution, min_score):
     """
     This function looks at all pairwise combinations of alignments from the two groups and returns
     a list of alignments from the first group which seem to be in good pairs.
     """
-    all_scores = []
-    for a_1 in alignments_1:
-        for a_2 in alignments_2:
-            insert_size = get_insert_size(a_1, a_2)
-            all_scores.append(score_insert_size(insert_size, distribution))
-    max_score = max(all_scores)
-    threshold_score = max_score - 2
     good_alignments = []
     for a_1 in alignments_1:
-        in_a_good_pair = False
         for a_2 in alignments_2:
             insert_size = get_insert_size(a_1, a_2)
             score = score_insert_size(insert_size, distribution)
-            if score >= threshold_score:
-                in_a_good_pair = True
+            if score >= min_score:
+                good_alignments.append(a_1)
                 break
-        if in_a_good_pair:
-            good_alignments.append(a_1)
     return good_alignments
 
 
