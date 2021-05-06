@@ -16,6 +16,7 @@ If not, see <http://www.gnu.org/licenses/>.
 """
 
 from setuptools import setup
+from Cython.Build import cythonize
 
 
 def readme():
@@ -41,5 +42,6 @@ setup(name='Maskimap',
       install_requires=['pytest'],
       entry_points={"console_scripts": ['maskimap = maskimap.__main__:main']},
       include_package_data=True,
+      ext_modules=cythonize('maskimap/*.pyx'),
       zip_safe=False,
       python_requires='>=3.6')
