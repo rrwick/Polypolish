@@ -64,6 +64,31 @@ def get_insert_size(alignment_1, alignment_2):
     return starts_ends[-1] - starts_ends[0]
 
 
+cdef int c_get_insert_size(alignment_1, alignment_2):
+    cdef int ref_start_1 = alignment_1.ref_start
+    cdef int ref_start_2 = alignment_2.ref_start
+    cdef int ref_end_1 = alignment_1.ref_end
+    cdef int ref_end_2 = alignment_2.ref_end
+
+    cdef int min_pos = ref_start_1
+    if ref_start_2 < min_pos:
+        min_pos = ref_start_2
+    if ref_end_1 < min_pos:
+        min_pos = ref_end_1
+    if ref_end_2 < min_pos:
+        min_pos = ref_end_2
+
+    cdef int max_pos = ref_start_1
+    if ref_start_2 > max_pos:
+        max_pos = ref_start_2
+    if ref_end_1 > max_pos:
+        max_pos = ref_end_1
+    if ref_end_2 > max_pos:
+        max_pos = ref_end_2
+
+    return max_pos - min_pos
+
+
 def get_distribution(insert_sizes):
     insert_sizes = sorted(insert_sizes)
     distribution = {}
@@ -75,11 +100,38 @@ def get_distribution(insert_sizes):
     return distribution
 
 
+cdef int* get_c_distribution(distribution_dict):
+    """
+    Converts the insert size distribution object (a Python dictionary) to a C array. This is for
+    use in functions like score_insert_size which are called a lot.
+    
+    Index  Percentile
+      0      0.001
+      1      0.01
+      2      0.1
+      3      1
+      4     10
+      5     50
+      6     90
+      7     99
+      8     99.9
+      9     99.99
+     10     99.999
+    """
+    cdef int c_distribution[11]
+    for i, p in enumerate([0.001, 0.01, 0.1, 1, 10, 50, 90, 99, 99.9, 99.99, 99.999]):
+        c_distribution[i] = distribution_dict[p]
+    return c_distribution
+
+
 def select_alignments_using_insert_size(alignments, distribution, read_pair_names, read_count):
     """
     This function modifies the alignments dictionary, removing alignments that are not part of a
     pair with a good insert size.
     """
+    cdef int score, max_score, min_score
+    cdef int* c_distribution = get_c_distribution(distribution)
+
     section_header('Selecting alignments using insert size')
     explanation('Maskimap now filters alignments using insert size. Whenever there is a read pair '
                 'with multiple possible combinations, Maskimap will discard any alignments that '
@@ -90,20 +142,22 @@ def select_alignments_using_insert_size(alignments, distribution, read_pair_name
         alignments_1, alignments_2 = alignments[name_1], alignments[name_2]
         count_1, count_2 = len(alignments_1), len(alignments_2)
         if count_1 >= 1 and count_2 >= 1 and count_1+count_2 >= 3:
-            all_scores = []
+            max_score = 0
             for a_1 in alignments_1:
                 for a_2 in alignments_2:
-                    all_scores.append(score_insert_size(get_insert_size(a_1, a_2), distribution))
-            min_score = max(all_scores) - 2
-            good_1 = select_good_alignments(alignments_1, alignments_2, distribution, min_score)
-            good_2 = select_good_alignments(alignments_2, alignments_1, distribution, min_score)
+                    score = c_score_insert_size(c_get_insert_size(a_1, a_2), c_distribution)
+                    if score > max_score:
+                        max_score = score
+            min_score = max_score - 2
+            good_1 = select_good_alignments(alignments_1, alignments_2, c_distribution, min_score)
+            good_2 = select_good_alignments(alignments_2, alignments_1, c_distribution, min_score)
             alignments[name_1] = good_1
             alignments[name_2] = good_2
 
     print_alignment_info(alignments, read_count, read_pair_names)
 
 
-def select_good_alignments(alignments_1, alignments_2, distribution, min_score):
+cdef select_good_alignments(alignments_1, alignments_2, int* c_distribution, min_score):
     """
     This function looks at all pairwise combinations of alignments from the two groups and returns
     a list of alignments from the first group which seem to be in good pairs.
@@ -111,8 +165,7 @@ def select_good_alignments(alignments_1, alignments_2, distribution, min_score):
     good_alignments = []
     for a_1 in alignments_1:
         for a_2 in alignments_2:
-            insert_size = get_insert_size(a_1, a_2)
-            score = score_insert_size(insert_size, distribution)
+            score = c_score_insert_size(c_get_insert_size(a_1, a_2), c_distribution)
             if score >= min_score:
                 good_alignments.append(a_1)
                 break
@@ -133,6 +186,24 @@ def score_insert_size(insert_size, distribution):
     if distribution[0.01] <= insert_size <= distribution[99.99]:
         return 2
     if distribution[0.001] <= insert_size <= distribution[99.999]:
+        return 1
+    return 0
+
+
+cdef int c_score_insert_size(int insert_size, int* c_distribution):
+    """
+    Returns a score for the insert size, with higher values being better. In this context, 'better'
+    means closer to a typical insert size based on the empirical distribution.
+    """
+    if c_distribution[4] <= insert_size <= c_distribution[6]:   #    10% - 90%
+        return 5
+    if c_distribution[3] <= insert_size <= c_distribution[7]:   #     1% - 99%
+        return 4
+    if c_distribution[2] <= insert_size <= c_distribution[8]:   #   0.1% - 99.9%
+        return 3
+    if c_distribution[1] <= insert_size <= c_distribution[9]:   #  0.01% - 99.99%
+        return 2
+    if c_distribution[0] <= insert_size <= c_distribution[10]:  # 0.001% - 99.999%
         return 1
     return 0
 
