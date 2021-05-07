@@ -263,4 +263,4 @@ def set_sam_flags(alignments, unaligned, read_pair_names, distribution):
                 new_flags += 2                                    # 2 = read mapped in proper pair
             if pair_a.is_on_reverse_strand():
                 new_flags += 32                                   # 32 = mate reverse strand
-        a.set_flags(new_flags)
+        a.sam_flags = new_flags
