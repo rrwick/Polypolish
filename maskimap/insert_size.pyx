@@ -58,38 +58,26 @@ def get_properly_aligned_pairs(unique_pairs):
     return proper_pairs
 
 
-def get_insert_size(alignment_1, alignment_2):
-    starts_ends = sorted([alignment_1.ref_start, alignment_1.ref_end,
-                          alignment_2.ref_start, alignment_2.ref_end])
-    return starts_ends[-1] - starts_ends[0]
-
-
-cdef int c_get_insert_size(alignment_1, alignment_2):
-    cdef int ref_start_1 = alignment_1.ref_start
+cdef int get_insert_size(alignment_1, alignment_2):
+    cdef int min_pos = alignment_1.ref_start
+    cdef int max_pos = alignment_1.ref_start
     cdef int ref_start_2 = alignment_2.ref_start
     cdef int ref_end_1 = alignment_1.ref_end
     cdef int ref_end_2 = alignment_2.ref_end
-
-    cdef int min_pos = ref_start_1
-    if ref_start_2 < min_pos:
-        min_pos = ref_start_2
-    if ref_end_1 < min_pos:
-        min_pos = ref_end_1
-    if ref_end_2 < min_pos:
-        min_pos = ref_end_2
-
-    cdef int max_pos = ref_start_1
-    if ref_start_2 > max_pos:
-        max_pos = ref_start_2
-    if ref_end_1 > max_pos:
-        max_pos = ref_end_1
-    if ref_end_2 > max_pos:
-        max_pos = ref_end_2
-
+    if ref_start_2 < min_pos: min_pos = ref_start_2
+    if ref_end_1 < min_pos: min_pos = ref_end_1
+    if ref_end_2 < min_pos: min_pos = ref_end_2
+    if ref_start_2 > max_pos: max_pos = ref_start_2
+    if ref_end_1 > max_pos: max_pos = ref_end_1
+    if ref_end_2 > max_pos: max_pos = ref_end_2
     return max_pos - min_pos
 
 
 def get_distribution(insert_sizes):
+    """
+    Returns the distribution of insert sizes as a Python dictionary, with keys of percentiles and
+    values of insert sizes.
+    """
     insert_sizes = sorted(insert_sizes)
     distribution = {}
     log('Percentile   Insert size')
@@ -100,37 +88,19 @@ def get_distribution(insert_sizes):
     return distribution
 
 
-cdef int* get_c_distribution(distribution_dict):
-    """
-    Converts the insert size distribution object (a Python dictionary) to a C array. This is for
-    use in functions like score_insert_size which are called a lot.
-    
-    Index  Percentile
-      0      0.001
-      1      0.01
-      2      0.1
-      3      1
-      4     10
-      5     50
-      6     90
-      7     99
-      8     99.9
-      9     99.99
-     10     99.999
-    """
-    cdef int c_distribution[11]
-    for i, p in enumerate([0.001, 0.01, 0.1, 1, 10, 50, 90, 99, 99.9, 99.99, 99.999]):
-        c_distribution[i] = distribution_dict[p]
-    return c_distribution
-
-
 def select_alignments_using_insert_size(alignments, distribution, read_pair_names, read_count):
     """
     This function modifies the alignments dictionary, removing alignments that are not part of a
     pair with a good insert size.
     """
     cdef int score, max_score, min_score
-    cdef int* c_distribution = get_c_distribution(distribution)
+
+    # Convert the distribution dictionary into a C array for speed:
+    #  0 =  0.001%, 1 =  0.01%, 2 =  0.1%, 3 =  1%, 4 = 10%, 5 = 50%
+    # 10 = 99.999%, 9 = 99.99%, 8 = 99.9%, 7 = 99%, 6 = 90%
+    cdef int c_distribution[11]
+    for i, p in enumerate([0.001, 0.01, 0.1, 1, 10, 50, 90, 99, 99.9, 99.99, 99.999]):
+        c_distribution[i] = distribution[p]
 
     section_header('Selecting alignments using insert size')
     explanation('Maskimap now filters alignments using insert size. Whenever there is a read pair '
@@ -145,7 +115,7 @@ def select_alignments_using_insert_size(alignments, distribution, read_pair_name
             max_score = 0
             for a_1 in alignments_1:
                 for a_2 in alignments_2:
-                    score = c_score_insert_size(c_get_insert_size(a_1, a_2), c_distribution)
+                    score = score_insert_size(get_insert_size(a_1, a_2), c_distribution)
                     if score > max_score:
                         max_score = score
             min_score = max_score - 2
@@ -157,7 +127,7 @@ def select_alignments_using_insert_size(alignments, distribution, read_pair_name
     print_alignment_info(alignments, read_count, read_pair_names)
 
 
-cdef select_good_alignments(alignments_1, alignments_2, int* c_distribution, min_score):
+cdef select_good_alignments(alignments_1, alignments_2, int* c_distribution, int min_score):
     """
     This function looks at all pairwise combinations of alignments from the two groups and returns
     a list of alignments from the first group which seem to be in good pairs.
@@ -165,32 +135,14 @@ cdef select_good_alignments(alignments_1, alignments_2, int* c_distribution, min
     good_alignments = []
     for a_1 in alignments_1:
         for a_2 in alignments_2:
-            score = c_score_insert_size(c_get_insert_size(a_1, a_2), c_distribution)
+            score = score_insert_size(get_insert_size(a_1, a_2), c_distribution)
             if score >= min_score:
                 good_alignments.append(a_1)
                 break
     return good_alignments
 
 
-def score_insert_size(insert_size, distribution):
-    """
-    Returns a score for the insert size, with higher values being better. In this context, 'better'
-    means closer to a typical insert size based on the empirical distribution.
-    """
-    if distribution[10.0] <= insert_size <= distribution[90.0]:
-        return 5
-    if distribution[1.0] <= insert_size <= distribution[99.0]:
-        return 4
-    if distribution[0.1] <= insert_size <= distribution[99.9]:
-        return 3
-    if distribution[0.01] <= insert_size <= distribution[99.99]:
-        return 2
-    if distribution[0.001] <= insert_size <= distribution[99.999]:
-        return 1
-    return 0
-
-
-cdef int c_score_insert_size(int insert_size, int* c_distribution):
+cdef int score_insert_size(int insert_size, int* c_distribution):
     """
     Returns a score for the insert size, with higher values being better. In this context, 'better'
     means closer to a typical insert size based on the empirical distribution.
@@ -209,6 +161,16 @@ cdef int c_score_insert_size(int insert_size, int* c_distribution):
 
 
 def final_alignment_selection(alignments, distribution, read_pair_names, read_count):
+    cdef int score, max_score
+    cdef int insert_decision_count = 0
+    cdef int random_decision_count = 0
+
+    # Convert the distribution dictionary into a C array for speed:
+    #  0 =  0.001%, 1 =  0.01%, 2 =  0.1%, 3 =  1%, 4 = 10%, 5 = 50%
+    # 10 = 99.999%, 9 = 99.99%, 8 = 99.9%, 7 = 99%, 6 = 90%
+    cdef int c_distribution[11]
+    for i, p in enumerate([0.001, 0.01, 0.1, 1, 10, 50, 90, 99, 99.9, 99.99, 99.999]):
+        c_distribution[i] = distribution[p]
 
     section_header('Final alignment selection')
     explanation('After the last round of selection, all reads with multiple alignments have a '
@@ -217,7 +179,6 @@ def final_alignment_selection(alignments, distribution, read_pair_names, read_co
                 'is made using insert size, if possible. Otherwise the kept alignment is chosen '
                 'at random.')
 
-    insert_decision_count, random_decision_count = 0, 0
     for name in read_pair_names:
         name_1, name_2 = name + '/1', name + '/2'
         alignments_1, alignments_2 = alignments[name_1], alignments[name_2]
@@ -233,17 +194,16 @@ def final_alignment_selection(alignments, distribution, read_pair_names, read_co
             alignments[name_2] = [random.choice(alignments[name_2])]
 
         elif count_1 >= 1 and count_2 >= 1 and count_1+count_2 >= 3:
-            all_scores = []
+            max_score = 0
             for a_1 in alignments_1:
                 for a_2 in alignments_2:
-                    insert_size = get_insert_size(a_1, a_2)
-                    all_scores.append(score_insert_size(insert_size, distribution))
-            max_score = max(all_scores)
+                    score = score_insert_size(get_insert_size(a_1, a_2), c_distribution)
+                    if score > max_score:
+                        max_score = score
             good_pairs = []
             for a_1 in alignments_1:
                 for a_2 in alignments_2:
-                    insert_size = get_insert_size(a_1, a_2)
-                    if score_insert_size(insert_size, distribution) == max_score:
+                    if score_insert_size(get_insert_size(a_1, a_2), c_distribution) == max_score:
                         good_pairs.append((a_1, a_2))
             assert len(good_pairs) >= 1
             if len(good_pairs) == 1:
@@ -256,13 +216,23 @@ def final_alignment_selection(alignments, distribution, read_pair_names, read_co
 
         else:
             assert False
+
     log(f'Ties broken with insert size:   {insert_decision_count:,}')
     log(f'Ties broken with random choice: {random_decision_count:,}')
     log()
     print_alignment_info(alignments, read_count, read_pair_names)
 
 
-def set_sam_flags(alignments, unaligned, read_pair_names, insert_size_distribution):
+def set_sam_flags(alignments, unaligned, read_pair_names, distribution):
+    cdef int new_flags
+
+    # Convert the distribution dictionary into a C array for speed:
+    #  0 =  0.001%, 1 =  0.01%, 2 =  0.1%, 3 =  1%, 4 = 10%, 5 = 50%
+    # 10 = 99.999%, 9 = 99.99%, 8 = 99.9%, 7 = 99%, 6 = 90%
+    cdef int c_distribution[11]
+    for i, p in enumerate([0.001, 0.01, 0.1, 1, 10, 50, 90, 99, 99.9, 99.99, 99.999]):
+        c_distribution[i] = distribution[p]
+
     for a in unaligned.values():
         a.make_unaligned()
     read_names = [n + '/1' for n in read_pair_names] + [n + '/2' for n in read_pair_names]
@@ -289,8 +259,7 @@ def set_sam_flags(alignments, unaligned, read_pair_names, insert_size_distributi
             new_flags += 8                                        # 8 = mate unmapped
         else:
             pair_a = pair_alignments[0]
-            insert_size = get_insert_size(a, pair_a)
-            if score_insert_size(insert_size, insert_size_distribution) >= 3:
+            if score_insert_size(get_insert_size(a, pair_a), c_distribution) >= 3:
                 new_flags += 2                                    # 2 = read mapped in proper pair
             if pair_a.is_on_reverse_strand():
                 new_flags += 32                                   # 32 = mate reverse strand
