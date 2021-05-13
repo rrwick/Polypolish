@@ -17,6 +17,7 @@ If not, see <http://www.gnu.org/licenses/>.
 
 from setuptools import setup
 from Cython.Build import cythonize
+from distutils.extension import Extension
 
 
 def readme():
@@ -28,6 +29,8 @@ def readme():
 __version__ = '0.0.0'
 exec(open('maskimap/version.py').read())
 
+
+extensions = [Extension(name='Maskimap', sources=['maskimap/*.pyx'], extra_compile_args=['-w'])]
 
 setup(name='Maskimap',
       version=__version__,
@@ -42,6 +45,6 @@ setup(name='Maskimap',
       install_requires=['Cython', 'pytest'],
       entry_points={"console_scripts": ['maskimap = maskimap.__main__:main']},
       include_package_data=True,
-      ext_modules=cythonize('maskimap/*.pyx'),
+      ext_modules=cythonize(extensions, compiler_directives={'language_level': "3"}),
       zip_safe=False,
       python_requires='>=3.6')
