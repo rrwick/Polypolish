@@ -91,3 +91,15 @@ def test_get_read_bases_for_each_target_base():
                           '-', 'A', 'A', 'C', 'G', 'T', 'C', 'G', 'C', 'T', 'CTGT', 'A', 'C', 'G',
                           'A', 'G', 'C', 'G', 'A', 'C', '-', 'T', 'A', 'T', 'A', 'G', 'C', 'G',
                           'T', 'T', '-', 'A', 'A', 'A', 'A', 'T', 'A']
+
+
+def test_get_mapq():
+    assert maskimap.alignment.get_mapq(0) == 0
+    assert maskimap.alignment.get_mapq(1) == 60
+    assert maskimap.alignment.get_mapq(2) == 3
+    assert maskimap.alignment.get_mapq(3) == 2
+    assert maskimap.alignment.get_mapq(4) == 1
+    assert maskimap.alignment.get_mapq(5) == 1
+    assert maskimap.alignment.get_mapq(10) == 1
+    assert maskimap.alignment.get_mapq(20) == 1
+    assert maskimap.alignment.get_mapq(1000) == 1

@@ -449,3 +449,26 @@ def output_alignments_to_stdout(alignments, read_pair_names, header_lines, unali
             print(a.get_sam_line())
         if not alignments_2:
             print(unaligned[name_2].get_sam_line())
+
+
+def get_mapq(alignment_count):
+    """
+    Maskimap's MAPQ system is based on the number of possible alignments for that read:
+      60 = only 1 alignment
+       3 = 2 possible alignments
+       2 = 3 possible alignments
+       1 = 4 or more possible alignments
+       0 = unaligned
+    See more here:
+     sequencing.qcfail.com/articles/mapq-values-are-really-useful-but-their-implementation-is-a-mess
+    """
+    if alignment_count == 0:
+        return 0
+    elif alignment_count == 1:
+        return 60
+    elif alignment_count == 2:
+        return 3
+    elif alignment_count == 3:
+        return 2
+    else:
+        return 1

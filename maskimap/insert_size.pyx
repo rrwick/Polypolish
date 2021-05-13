@@ -13,7 +13,7 @@ If not, see <http://www.gnu.org/licenses/>.
 
 import random
 
-from .alignment import print_alignment_info
+from .alignment import print_alignment_info, get_mapq
 from .log import log, section_header, explanation
 from .misc import get_percentile_sorted
 from . import settings
@@ -183,6 +183,11 @@ def final_alignment_selection(alignments, distribution, read_pair_names, read_co
         name_1, name_2 = name + '/1', name + '/2'
         alignments_1, alignments_2 = alignments[name_1], alignments[name_2]
         count_1, count_2 = len(alignments_1), len(alignments_2)
+
+        for a in alignments_1:
+            a.mapq = get_mapq(count_1)
+        for a in alignments_2:
+            a.mapq = get_mapq(count_2)
 
         if count_1 <= 1 and count_2 <= 1:
             pass
