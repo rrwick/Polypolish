@@ -1,13 +1,13 @@
 """
 Copyright 2021 Ryan Wick (rrwick@gmail.com)
-https://github.com/rrwick/Maskimap
+https://github.com/rrwick/Repeatish
 
-This file is part of Maskimap. Maskimap is free software: you can redistribute it and/or modify
+This file is part of Repeatish. Repeatish is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by the Free Software Foundation,
-either version 3 of the License, or (at your option) any later version. Maskimap is distributed
+either version 3 of the License, or (at your option) any later version. Repeatish is distributed
 in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more
-details. You should have received a copy of the GNU General Public License along with Maskimap.
+details. You should have received a copy of the GNU General Public License along with Repeatish.
 If not, see <http://www.gnu.org/licenses/>.
 """
 
@@ -21,7 +21,7 @@ from .misc import run_command, iterate_fastq, reverse_complement
 
 def align_reads(target, short1, short2, threads, max_errors, debug):
     section_header('Aligning short reads to target sequence')
-    explanation('Maskimap uses minimap2 to align the short reads to the target sequence. The '
+    explanation('Repeatish uses minimap2 to align the short reads to the target sequence. The '
                 'alignment is done in an unpaired manner, and all end-to-end alignments are kept '
                 'for each read.')
 
@@ -453,7 +453,7 @@ def output_alignments_to_stdout(alignments, read_pair_names, header_lines, unali
 
 def get_mapq(alignment_count):
     """
-    Maskimap's MAPQ system is based on the number of possible alignments for that read:
+    Repeatish's MAPQ system is based on the number of possible alignments for that read:
       60 = only 1 alignment
        3 = 2 possible alignments
        2 = 3 possible alignments
