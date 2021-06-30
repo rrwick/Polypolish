@@ -20,14 +20,13 @@ from .help_formatter import MyParser, MyHelpFormatter
 from .log import log, bold, section_header, explanation
 from .polish_targets import polish_target_sequences
 from .misc import get_default_thread_count, get_ascii_art, load_fasta
-from .software import check_python, check_minimap2
 from .version import __version__
 
 
 def main():
     args = parse_args()
     starting_message(args)
-    assembly_seqs = load_fasta(args.assembly)
+    assembly_seqs = load_assembly(args.assembly)
     alignments = load_alignments(args.sam1, args.sam2, args.max_errors)
     polish_target_sequences(alignments, assembly_seqs, args.debug)
 
@@ -82,22 +81,41 @@ def starting_message(args):
     log(f'Polypolish version: v{__version__}')
     log(f'Using {args.threads} threads')
     log()
+    log('Input assembly:')
+    log(f'  {args.assembly}')
+    log()
     log('Input short-read alignments:')
     log(f'  {args.sam1}')
     if args.sam2 is not None:
         log(f'  {args.sam2}')
     log()
-    log('Input assembly:')
-    log(f'  {args.assembly}')
-    log()
-    check_requirements()
-    log()
-
-
-def check_requirements():
-    log('Checking requirements:')
     check_python()
-    check_minimap2()
+
+
+def load_assembly(assembly_filename):
+    section_header('Loading assembly')
+    explanation('Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor '
+                'incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis '
+                'nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. '
+                'Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu '
+                'fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in '
+                'culpa qui officia deserunt mollit anim id est laborum.')
+    assembly_seqs = load_fasta(assembly_filename)
+    count = len(assembly_seqs)
+    if count == 0:
+        sys.exit(f'Error: no sequences in {assembly_filename}')
+    log(f'{count} sequence{"" if count == 1 else "s"} in {assembly_filename}:')
+    for name, seq in assembly_seqs:
+        log(f'  {name} ({len(seq):,} bp)')
+    log()
+    return assembly_seqs
+
+
+def check_python():
+    major, minor = sys.version_info.major, sys.version_info.minor
+    good_version = (major >= 3 and minor >= 6)
+    if not good_version:
+        sys.exit('Error: Polypolish requires Python 3.6 or later')
 
 
 if __name__ == '__main__':

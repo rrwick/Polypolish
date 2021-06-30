@@ -98,12 +98,12 @@ def reverse_complement(seq):
 
 
 def get_ascii_art():
-    ascii_art = (bold_yellow(r"  _____                            _    _       _     ") + '\n' +
-                 bold_yellow(r" |  __ \                          | |  (_)     | |    ") + '\n' +
-                 bold_yellow(r" | |__) | ___  _ __    ___   __ _ | |_  _  ___ | |__  ") + '\n' +
-                 bold_yellow(r" |  _  / / _ \| '_ \  / _ \ / _` || __|| |/ __|| '_ \ ") + '\n' +
-                 bold_yellow(r" | | \ \|  __/| |_) ||  __/| (_| || |_ | |\__ \| | | |") + '\n' +
-                 bold_yellow(r" |_|  \_\\___|| .__/  \___| \__,_| \__||_||___/|_| |_|") + '\n' +
-                 bold_yellow(r"              | |                                     ") + '\n' +
-                 bold_yellow(r"              |_|                                     ") + '\n')
+    ascii_art = (bold_yellow(r"  _____        _                       _  _       _     ") + '\n' +
+                 bold_yellow(r" |  __ \      | |                     | |(_)     | |    ") + '\n' +
+                 bold_yellow(r" | |__) |___  | | _   _  _ __    ___  | | _  ___ | |__  ") + '\n' +
+                 bold_yellow(r" |  ___// _ \ | || | | || '_ \  / _ \ | || |/ __|| '_ \ ") + '\n' +
+                 bold_yellow(r" | |   | (_) || || |_| || |_) || (_) || || |\__ \| | | |") + '\n' +
+                 bold_yellow(r" |_|    \___/ |_| \__, || .__/  \___/ |_||_||___/|_| |_|") + '\n' +
+                 bold_yellow(r"                   __/ || |                             ") + '\n' +
+                 bold_yellow(r"                  |___/ |_|                             ") + '\n')
     return ascii_art
