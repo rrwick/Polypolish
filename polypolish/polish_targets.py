@@ -11,13 +11,14 @@ details. You should have received a copy of the GNU General Public License along
 If not, see <http://www.gnu.org/licenses/>.
 """
 
+import multiprocessing
 import statistics
 
 from .log import log, section_header, explanation
 from . import settings
 
 
-def polish_target_sequences(alignments, assembly_seqs, debug, min_depth, min_fraction):
+def polish_target_sequences(alignments, assembly_seqs, debug, min_depth, min_fraction, threads):
     section_header('Polishing assembly sequences')
     explanation('Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor '
                 'incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis '
@@ -28,17 +29,18 @@ def polish_target_sequences(alignments, assembly_seqs, debug, min_depth, min_fra
     new_lengths = []
     for target_name, target_seq in assembly_seqs:
         new_name, new_length = polish_target_sequence(target_name, target_seq, alignments, debug,
-                                                      min_depth, min_fraction)
+                                                      min_depth, min_fraction, threads)
         new_lengths.append((new_name, new_length))
     return new_lengths
 
 
-def polish_target_sequence(target_name, target_seq, alignments, debug, min_depth, min_fraction):
+def polish_target_sequence(target_name, target_seq, alignments, debug, min_depth, min_fraction,
+                           threads):
     log(f'Polishing {target_name} ({len(target_seq):,} bp):')
 
     changed_positions = set()
     log('  Building read pileup:')
-    pileup, depths_by_pos = get_pileup(alignments, target_name, target_seq)
+    pileup, depths_by_pos = get_pileup(alignments, target_name, target_seq, threads)
     mean_depth = statistics.mean(depths_by_pos.values())
     log(f'    mean read depth: {mean_depth:.1f}x')
     uncovered = sum(1 if d == 0.0 else 0 for d in depths_by_pos.values())
@@ -46,7 +48,7 @@ def polish_target_sequence(target_name, target_seq, alignments, debug, min_depth
     have = 'has' if uncovered == 1 else 'have'
     log(f'    {uncovered:,} bp {have} a depth of zero ({coverage:.4f}% coverage)')
 
-    log('  Repairing assembly:')
+    log('  Repairing assembly sequence:')
     if debug:
         log()
         log('Column_1=ref_pos  Column_2=ref_base  Column_3=depth  Column_4=match_fraction  '
@@ -55,7 +57,7 @@ def polish_target_sequence(target_name, target_seq, alignments, debug, min_depth
     new_bases = []
     for i in range(len(target_seq)):
         if i % settings.POLISH_PROGRESS_INTERVAL == 0 and not debug:
-            log(f'\r    {i:,} / {len(target_seq):,}', end='')
+            log(f'\r    {i:,} / {len(target_seq):,} bases', end='')
 
         read_base_counts = pileup[i]
         depth = depths_by_pos[i]
@@ -89,7 +91,7 @@ def polish_target_sequence(target_name, target_seq, alignments, debug, min_depth
         new_bases.append(new_base)
 
     if not debug:
-        log(f'\r    {len(target_seq):,} / {len(target_seq):,}')
+        log(f'\r    {len(target_seq):,} / {len(target_seq):,} bases')
     changed_count = len(changed_positions)
     changed_percent = 100.0 * changed_count / len(target_seq)
     estimated_accuracy = 100.0 - changed_percent
@@ -108,13 +110,35 @@ def polish_target_sequence(target_name, target_seq, alignments, debug, min_depth
     return new_name, len(new_sequence)
 
 
-def get_pileup(alignments, target_name, target_seq):
+def get_pileup(alignments, target_name, target_seq, threads):
+    if threads == 1:
+        return get_pileup_one_thread(alignments, target_name, target_seq)
+
+    # If we're using multiple threads, we first split the alignments into per-thread bins.
+    alignments_by_thread = [{} for _ in range(threads)]
+    for i, read_name in enumerate(alignments.keys()):
+        read_alignments = alignments[read_name]
+        thread_num = i % threads
+        alignments_by_thread[thread_num][read_name] = read_alignments
+
+    # Then we get a pileup and per-base-depths for each of these (in parallel).
+    with multiprocessing.Pool(threads) as p:
+        arguments = [(alignments_by_thread[i], target_name, target_seq) for i in range(threads)]
+        results = p.starmap(get_pileup_one_thread, arguments)
+    pileup_by_thread, depths_by_thread = [], []
+    for pileup, depths in results:
+        pileup_by_thread.append(pileup)
+        depths_by_thread.append(depths)
+
+    # Then we combine the per-thread pileups and depths together.
+    pileup = combine_pileups(pileup_by_thread, target_seq)
+    depths_by_pos = combine_depths(depths_by_thread, target_seq)
+    return pileup, depths_by_pos
+
+
+def get_pileup_one_thread(alignments, target_name, target_seq):
     pileup = {i: {} for i in range(len(target_seq))}
     depths_by_pos = {i: 0.0 for i in range(len(target_seq))}
-
-    base_count = 0
-    log(f'    {base_count:,} bases', end='')
-    next_update = settings.PILEUP_PROGRESS_INTERVAL
 
     for _, read_alignments in alignments.items():
         for a in read_alignments:
@@ -153,11 +177,28 @@ def get_pileup(alignments, target_name, target_seq):
                     pileup[a.ref_start + i][bases] += 1
                 else:
                     pileup[a.ref_start + i][bases] = 1
-                base_count += 1
                 depths_by_pos[a.ref_start + i] += depth_contribution
-        if base_count >= next_update:
-            log(f'\r    {next_update:,} bases', end='')
-            next_update += settings.PILEUP_PROGRESS_INTERVAL
 
-    log(f'\r    {base_count:,} bases')
     return pileup, depths_by_pos
+
+
+def combine_depths(depths_by_thread, target_seq):
+    depths_by_pos = {i: 0.0 for i in range(len(target_seq))}
+    for thread_depths in depths_by_thread:
+        assert len(thread_depths) == len(depths_by_pos)
+        for i, d in thread_depths.items():
+            depths_by_pos[i] += d
+    return depths_by_pos
+
+
+def combine_pileups(pileup_by_thread, target_seq):
+    pileup = {i: {} for i in range(len(target_seq))}
+    for thread_pileup in pileup_by_thread:
+        assert len(thread_pileup) == len(pileup)
+        for i, p in thread_pileup.items():
+            for bases, count in p.items():
+                if bases in pileup[i]:
+                    pileup[i][bases] += count
+                else:
+                    pileup[i][bases] = count
+    return pileup
