@@ -13,12 +13,10 @@ If not, see <http://www.gnu.org/licenses/>.
 """
 
 import argparse
-import random
 import sys
 
-from .alignment import align_reads
+from .alignment import load_alignments
 from .help_formatter import MyParser, MyHelpFormatter
-from .insert_size import get_insert_size_distribution, select_alignments_using_insert_size
 from .log import log, bold, section_header, explanation
 from .polish_targets import polish_target_sequences
 from .misc import get_default_thread_count, get_ascii_art, load_fasta
@@ -29,17 +27,8 @@ from .version import __version__
 def main():
     args = parse_args()
     starting_message(args)
-    random.seed(args.seed)
     assembly_seqs = load_fasta(args.assembly)
-
-    alignments, read_pair_names, read_count = \
-        align_reads(args.assembly, args.short1, args.short2, args.threads, args.max_errors,
-                    args.debug)
-
-    insert_size_distribution = get_insert_size_distribution(alignments)
-    select_alignments_using_insert_size(alignments, insert_size_distribution, read_pair_names,
-                                        read_count)
-
+    alignments = load_alignments(args.sam1, args.sam2, args.max_errors)
     polish_target_sequences(alignments, assembly_seqs, args.debug)
 
 
@@ -51,17 +40,16 @@ def parse_args():
     required_args = parser.add_argument_group('Required arguments')
     required_args.add_argument('-a', '--assembly', type=str, required=True,
                                help='Assembly to polish (FASTA format)')
-    required_args.add_argument('-1', '--short1', type=str, required=True,
-                               help='Input short reads, first in pair (FASTQ format)')
-    required_args.add_argument('-2', '--short2', type=str, required=True,
-                               help='Input short reads, second in pair (FASTQ format)')
+    required_args.add_argument('-1', '--sam1', type=str, required=True,
+                               help='Input short read alignments, unpaired or first in pair '
+                                    '(SAM format)')
+    required_args.add_argument('-2', '--sam2', type=str, required=False,
+                               help='Input short read alignments, second in pair (SAM format)')
 
     setting_args = parser.add_argument_group('Settings')
     setting_args.add_argument('-m', '--max_errors', type=int, default=10,
                               help='Ignore alignments with more than this number of mismatches '
                                    'and indels')
-    setting_args.add_argument('-s', '--seed', type=int, default=0,
-                              help='Seed for random number generator')
     setting_args.add_argument('-t', '--threads', type=int, default=get_default_thread_count(),
                               help='Number of threads')
 
@@ -84,17 +72,20 @@ def parse_args():
 
 def starting_message(args):
     section_header('Starting Polypolish')
-    explanation('Polypolish is a paired-end read aligner which aims to produce high-quality '
-                'alignments for polishing. Specifically, it takes as input paired-end short reads '
-                'and a haploid genome assembly to be polished (e.g. a long-read assembly). '
-                'Instead of simply aligning each read to its best location (as most aligners do), '
-                'it aims to align reads to where they will be most useful for polishing.')
+    explanation('Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor '
+                'incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis '
+                'nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. '
+                'Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu '
+                'fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in '
+                'culpa qui officia deserunt mollit anim id est laborum.')
+
     log(f'Polypolish version: v{__version__}')
     log(f'Using {args.threads} threads')
     log()
-    log('Input short reads:')
-    log(f'  {args.short1}')
-    log(f'  {args.short2}')
+    log('Input short-read alignments:')
+    log(f'  {args.sam1}')
+    if args.sam2 is not None:
+        log(f'  {args.sam2}')
     log()
     log('Input assembly:')
     log(f'  {args.assembly}')

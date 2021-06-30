@@ -12,10 +12,7 @@ If not, see <http://www.gnu.org/licenses/>.
 """
 
 import gzip
-import math
 import multiprocessing
-import os
-import subprocess
 import sys
 
 from .log import bold_yellow
@@ -51,54 +48,9 @@ def get_open_func(filename):
         return open
 
 
-def get_sequence_file_type(filename):
-    """
-    Determines whether a file is FASTA or FASTQ.
-    """
-    if not os.path.isfile(filename):
-        sys.exit(f'\nError: could not find {filename}')
-    if get_compression_type(filename) == 'gz':
-        open_func = gzip.open
-    else:  # plain text
-        open_func = open
-    with open_func(filename, 'rt') as seq_file:
-        try:
-            first_char = seq_file.read(1)
-        except UnicodeDecodeError:
-            first_char = ''
-    if first_char == '>':
-        return 'FASTA'
-    elif first_char == '@':
-        return 'FASTQ'
-    else:
-        return 'neither'
-
-
-def iterate_fastq(filename):
-    if get_sequence_file_type(filename) != 'FASTQ':
-        sys.exit('\nError: {} is not FASTQ format'.format(filename))
-    with get_open_func(filename)(filename, 'rt') as fastq:
-        for line in fastq:
-            line = line.strip()
-            if len(line) == 0:
-                continue
-            if not line.startswith('@'):
-                continue
-            name = line[1:].split()[0]
-            header = line
-            sequence = next(fastq).strip()
-            _ = next(fastq)
-            qualities = next(fastq).strip()
-            yield name, header, sequence, qualities
-
-
 def load_fasta(fasta_filename, include_full_header=False):
-    if get_compression_type(fasta_filename) == 'gz':
-        open_func = gzip.open
-    else:  # plain text
-        open_func = open
     fasta_seqs = []
-    with open_func(fasta_filename, 'rt') as fasta_file:
+    with get_open_func(fasta_filename)(fasta_filename, 'rt') as fasta_file:
         name = ''
         sequence = []
         for line in fasta_file:
@@ -155,24 +107,3 @@ def get_ascii_art():
                  bold_yellow(r"              | |                                     ") + '\n' +
                  bold_yellow(r"              |_|                                     ") + '\n')
     return ascii_art
-
-
-def run_command(command):
-    result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                            universal_newlines=True)
-    return result.stdout.strip(), result.stderr.strip(), result.returncode
-
-
-def get_percentile_sorted(sorted_list, percentile):
-    """
-    Returns a percentile of a list of numbers. Assumes the list has already been sorted.
-    Implements the nearest rank method:
-    https://en.wikipedia.org/wiki/Percentile#The_Nearest_Rank_method
-    """
-    if not sorted_list:
-        return 0.0
-    fraction = percentile / 100.0
-    rank = int(math.ceil(fraction * len(sorted_list)))
-    if rank == 0:
-        return sorted_list[0]
-    return sorted_list[rank - 1]
