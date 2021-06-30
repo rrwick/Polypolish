@@ -16,7 +16,6 @@ If not, see <http://www.gnu.org/licenses/>.
 """
 
 from setuptools import setup
-from distutils.extension import Extension
 
 
 def readme():
