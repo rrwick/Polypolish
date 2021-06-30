@@ -16,7 +16,6 @@ If not, see <http://www.gnu.org/licenses/>.
 """
 
 from setuptools import setup
-from Cython.Build import cythonize
 from distutils.extension import Extension
 
 
@@ -30,8 +29,6 @@ __version__ = '0.0.0'
 exec(open('polypolish/version.py').read())
 
 
-extensions = [Extension(name='Polypolish', sources=['polypolish/*.pyx'], extra_compile_args=['-w'])]
-
 setup(name='Polypolish',
       version=__version__,
       description='Polypolish: a hybrid short-read aligner',
@@ -42,9 +39,8 @@ setup(name='Polypolish',
       author_email='rrwick@gmail.com',
       license='GPLv3',
       packages=['polypolish'],
-      install_requires=['Cython', 'pytest'],
+      install_requires=['pytest'],
       entry_points={"console_scripts": ['polypolish = polypolish.__main__:main']},
       include_package_data=True,
-      ext_modules=cythonize(extensions, compiler_directives={'language_level': "3"}),
       zip_safe=False,
       python_requires='>=3.6')

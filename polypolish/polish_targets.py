@@ -44,7 +44,7 @@ def polish_target_sequence(target_name, target_seq, alignments, debug, min_depth
     uncovered = sum(1 if d == 0.0 else 0 for d in depths_by_pos.values())
     coverage = 100.0 * (len(target_seq) - uncovered) / len(target_seq)
     have = 'has' if uncovered == 1 else 'have'
-    log(f'    {uncovered:,} bp {have} a depth of zero ({coverage:.3f}% coverage)')
+    log(f'    {uncovered:,} bp {have} a depth of zero ({coverage:.4f}% coverage)')
 
     log('  Repairing assembly:')
     if debug:
@@ -95,8 +95,8 @@ def polish_target_sequence(target_name, target_seq, alignments, debug, min_depth
     estimated_accuracy = 100.0 - changed_percent
 
     positions = 'position' if changed_count == 1 else 'positions'
-    log(f'    {changed_count:,} {positions} changed ({changed_percent:.3f}% of total positions)')
-    log(f'    estimated assembly sequence accuracy: {estimated_accuracy:.3f}%')
+    log(f'    {changed_count:,} {positions} changed ({changed_percent:.4f}% of total positions)')
+    log(f'    estimated pre-polishing sequence accuracy: {estimated_accuracy:.4f}%')
     log()
 
     new_name = f'{target_name}_polypolish'
@@ -141,9 +141,12 @@ def get_pileup(alignments, target_name, target_seq):
             #   ref:  ... T G A G T A C A G G G G A A G T C C A G T ...
 
             last_base = aligned_bases[-1]
-            while aligned_bases[-1] == last_base:
+            try:
+                while aligned_bases[-1] == last_base:
+                    aligned_bases.pop()
                 aligned_bases.pop()
-            aligned_bases.pop()
+            except IndexError:  # popped all the bases off
+                pass
 
             for i, bases in enumerate(aligned_bases):
                 if bases in pileup[a.ref_start + i]:
