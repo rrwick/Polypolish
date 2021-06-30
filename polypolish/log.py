@@ -29,22 +29,6 @@ def section_header(text):
     print(header + ' ' + time_str, file=sys.stderr, flush=True)
 
 
-def progress(completed, total, end_newline=False):
-    """
-    Logs a progress line using a carriage return to overwrite the previous progress line. Only the
-    final progress line will be written to the log file.
-    """
-    progress_str = f'{completed:,} / {total:,}'
-    try:
-        percent = 100.0 * completed / total
-    except ZeroDivisionError:
-        percent = 0.0
-    progress_str += f' ({percent:.1f}%)'
-
-    end_char = '\n' if end_newline else ''
-    log('\r' + progress_str, end=end_char)
-
-
 END_FORMATTING = '\033[0m'
 BOLD = '\033[1m'
 UNDERLINE = '\033[4m'

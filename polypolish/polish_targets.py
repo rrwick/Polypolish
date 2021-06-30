@@ -14,7 +14,6 @@ If not, see <http://www.gnu.org/licenses/>.
 import statistics
 
 from .log import log, section_header, explanation
-from . import settings
 
 
 def polish_target_sequences(alignments, assembly_seqs, debug, min_depth, min_fraction):
@@ -54,9 +53,6 @@ def polish_target_sequence(target_name, target_seq, alignments, debug, min_depth
 
     new_bases = []
     for i in range(len(target_seq)):
-        if i % settings.POLISH_PROGRESS_INTERVAL == 0 and not debug:
-            log(f'\r    {i:,} / {len(target_seq):,} bases', end='')
-
         read_base_counts = pileup[i]
         depth = depths_by_pos[i]
         ref_base = target_seq[i]
@@ -88,8 +84,6 @@ def polish_target_sequence(target_name, target_seq, alignments, debug, min_depth
 
         new_bases.append(new_base)
 
-    if not debug:
-        log(f'\r    {len(target_seq):,} / {len(target_seq):,} bases')
     changed_count = len(changed_positions)
     changed_percent = 100.0 * changed_count / len(target_seq)
     estimated_accuracy = 100.0 - changed_percent
