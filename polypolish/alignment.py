@@ -55,7 +55,7 @@ def load_alignments_one_file(sam_filename, alignments, read_name_suffix):
 
 
 def filter_alignments(alignments, max_errors):
-    log('Filtering for high quality end-to-end alignments... ', end='')
+    log('Filtering for high-quality end-to-end alignments:')
     keep_count, discard_count = 0, 0
     for name in list(alignments.keys()):
         good_alignments = []
@@ -66,7 +66,6 @@ def filter_alignments(alignments, max_errors):
             else:
                 discard_count += 1
             alignments[name] = good_alignments
-    log('done')
     log(f'  {keep_count:,} alignment{"" if keep_count == 1 else "s"} kept')
     log(f'  {discard_count:,} alignment{"" if keep_count == 1 else "s"} discarded')
     log()

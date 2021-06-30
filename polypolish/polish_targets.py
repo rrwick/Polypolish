@@ -14,9 +14,10 @@ If not, see <http://www.gnu.org/licenses/>.
 import statistics
 
 from .log import log, section_header, explanation
+from . import settings
 
 
-def polish_target_sequences(alignments, assembly_seqs, debug):
+def polish_target_sequences(alignments, assembly_seqs, debug, min_depth, min_fraction):
     section_header('Polishing assembly sequences')
     explanation('Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor '
                 'incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis '
@@ -24,23 +25,28 @@ def polish_target_sequences(alignments, assembly_seqs, debug):
                 'Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu '
                 'fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in '
                 'culpa qui officia deserunt mollit anim id est laborum.')
+    new_lengths = []
     for target_name, target_seq in assembly_seqs:
-        polish_target_sequence(target_name, target_seq, alignments, debug)
+        new_name, new_length = polish_target_sequence(target_name, target_seq, alignments, debug,
+                                                      min_depth, min_fraction)
+        new_lengths.append((new_name, new_length))
+    return new_lengths
 
 
-def polish_target_sequence(target_name, target_seq, alignments, debug):
-    log(f'Polishing {target_name}')
-    log(f'  {len(target_seq):,} bp total')
+def polish_target_sequence(target_name, target_seq, alignments, debug, min_depth, min_fraction):
+    log(f'Polishing {target_name} ({len(target_seq):,} bp):')
 
     changed_positions = set()
+    log('  Building read pileup:')
     pileup, depths_by_pos = get_pileup(alignments, target_name, target_seq)
     mean_depth = statistics.mean(depths_by_pos.values())
-    log(f'  mean read depth: {mean_depth:.1f}x')
+    log(f'    mean read depth: {mean_depth:.1f}x')
     uncovered = sum(1 if d == 0.0 else 0 for d in depths_by_pos.values())
     coverage = 100.0 * (len(target_seq) - uncovered) / len(target_seq)
     have = 'has' if uncovered == 1 else 'have'
-    log(f'  {uncovered:,} bp {have} a depth of zero ({coverage:.3f}% coverage)')
+    log(f'    {uncovered:,} bp {have} a depth of zero ({coverage:.3f}% coverage)')
 
+    log('  Repairing assembly:')
     if debug:
         log()
         log('Column_1=ref_pos  Column_2=ref_base  Column_3=depth  Column_4=match_fraction  '
@@ -48,12 +54,15 @@ def polish_target_sequence(target_name, target_seq, alignments, debug):
 
     new_bases = []
     for i in range(len(target_seq)):
+        if i % settings.POLISH_PROGRESS_INTERVAL == 0 and not debug:
+            log(f'\r    {i:,} / {len(target_seq):,}', end='')
+
         read_base_counts = pileup[i]
         depth = depths_by_pos[i]
         ref_base = target_seq[i]
 
         if depth > 0.0:
-            target_count = 0.5 * depth
+            target_count = max(min_depth, min_fraction * depth)
             valid_bases = [b for b, c in read_base_counts.items() if c >= target_count]
         else:
             valid_bases = []
@@ -79,25 +88,34 @@ def polish_target_sequence(target_name, target_seq, alignments, debug):
 
         new_bases.append(new_base)
 
+    if not debug:
+        log(f'\r    {len(target_seq):,} / {len(target_seq):,}')
     changed_count = len(changed_positions)
     changed_percent = 100.0 * changed_count / len(target_seq)
     estimated_accuracy = 100.0 - changed_percent
 
     positions = 'position' if changed_count == 1 else 'positions'
-    log(f'  {changed_count:,} {positions} changed ({changed_percent:.3f}% of total positions)')
-    log(f'  estimated assembly sequence accuracy: {estimated_accuracy:.3f}%')
+    log(f'    {changed_count:,} {positions} changed ({changed_percent:.3f}% of total positions)')
+    log(f'    estimated assembly sequence accuracy: {estimated_accuracy:.3f}%')
     log()
 
+    new_name = f'{target_name}_polypolish'
     new_sequence = ''.join(new_bases)
     new_sequence = new_sequence.replace('-', '')
 
-    print(f'>{target_name}_polished')
+    print(f'>{new_name}')
     print(new_sequence)
+    return new_name, len(new_sequence)
 
 
 def get_pileup(alignments, target_name, target_seq):
     pileup = {i: {} for i in range(len(target_seq))}
     depths_by_pos = {i: 0.0 for i in range(len(target_seq))}
+
+    base_count = 0
+    log(f'    {base_count:,} bases', end='')
+    next_update = settings.PILEUP_PROGRESS_INTERVAL
+
     for _, read_alignments in alignments.items():
         for a in read_alignments:
             if a.ref_name != target_name:
@@ -132,5 +150,11 @@ def get_pileup(alignments, target_name, target_seq):
                     pileup[a.ref_start + i][bases] += 1
                 else:
                     pileup[a.ref_start + i][bases] = 1
+                base_count += 1
                 depths_by_pos[a.ref_start + i] += depth_contribution
+        if base_count >= next_update:
+            log(f'\r    {next_update:,} bases', end='')
+            next_update += settings.PILEUP_PROGRESS_INTERVAL
+
+    log(f'\r    {base_count:,} bases')
     return pileup, depths_by_pos

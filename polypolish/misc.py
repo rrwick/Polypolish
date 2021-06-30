@@ -12,7 +12,6 @@ If not, see <http://www.gnu.org/licenses/>.
 """
 
 import gzip
-import multiprocessing
 import sys
 
 from .log import bold_yellow
@@ -73,10 +72,6 @@ def load_fasta(fasta_filename, include_full_header=False):
             else:
                 fasta_seqs.append((name.split()[0], ''.join(sequence)))
     return fasta_seqs
-
-
-def get_default_thread_count():
-    return min(multiprocessing.cpu_count(), 16)
 
 
 REV_COMP_DICT = {'A': 'T', 'T': 'A', 'G': 'C', 'C': 'G', 'a': 't', 't': 'a', 'g': 'c', 'c': 'g',

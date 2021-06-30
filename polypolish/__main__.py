@@ -13,22 +13,25 @@ If not, see <http://www.gnu.org/licenses/>.
 """
 
 import argparse
+import datetime
 import sys
 
 from .alignment import load_alignments
 from .help_formatter import MyParser, MyHelpFormatter
 from .log import log, bold, section_header, explanation
 from .polish_targets import polish_target_sequences
-from .misc import get_default_thread_count, get_ascii_art, load_fasta
+from .misc import get_ascii_art, load_fasta
 from .version import __version__
 
 
 def main():
     args = parse_args()
-    starting_message(args)
+    start_time = starting_message(args)
     assembly_seqs = load_assembly(args.assembly)
     alignments = load_alignments(args.sam1, args.sam2, args.max_errors)
-    polish_target_sequences(alignments, assembly_seqs, args.debug)
+    new_lengths = polish_target_sequences(alignments, assembly_seqs, args.debug, args.min_depth,
+                                          args.min_fraction)
+    finished_message(start_time, new_lengths)
 
 
 def parse_args():
@@ -49,8 +52,12 @@ def parse_args():
     setting_args.add_argument('-m', '--max_errors', type=int, default=10,
                               help='Ignore alignments with more than this number of mismatches '
                                    'and indels')
-    setting_args.add_argument('-t', '--threads', type=int, default=get_default_thread_count(),
-                              help='Number of threads')
+    setting_args.add_argument('-d', '--min_depth', type=int, default=5,
+                              help='A base must occur at least this many times in the pileup to '
+                                   'be considered valid')
+    setting_args.add_argument('-f', '--min_fraction', type=float, default=0.5,
+                              help='A base must make up at least this fraction of the pileup to '
+                                   'be considered valid')
 
     setting_args.add_argument('--debug', action='store_true',
                               help='Output lots of extra information (for debugging purposes)')
@@ -79,7 +86,6 @@ def starting_message(args):
                 'culpa qui officia deserunt mollit anim id est laborum.')
 
     log(f'Polypolish version: v{__version__}')
-    log(f'Using {args.threads} threads')
     log()
     log('Input assembly:')
     log(f'  {args.assembly}')
@@ -89,7 +95,30 @@ def starting_message(args):
     if args.sam2 is not None:
         log(f'  {args.sam2}')
     log()
+    log('Settings:')
+    log(f'  --max_errors {args.max_errors}')
+    log(f'  --min_depth {args.min_depth}')
+    log(f'  --min_fraction {args.min_fraction}')
+    log()
     check_python()
+    return datetime.datetime.now()
+
+
+def finished_message(start_time, new_lengths):
+    section_header('Finished!')
+    explanation('Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor '
+                'incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis '
+                'nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. '
+                'Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu '
+                'fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in '
+                'culpa qui officia deserunt mollit anim id est laborum.')
+    log('Polished sequence (to stdout):')
+    for new_name, new_length in new_lengths:
+        log(f'  {new_name} ({new_length:,} bp)')
+    log()
+    time_to_run = datetime.datetime.now() - start_time
+    log(f'Time to run: {time_to_run}')
+    log()
 
 
 def load_assembly(assembly_filename):
