@@ -20,7 +20,7 @@ from .alignment import load_alignments
 from .help_formatter import MyParser, MyHelpFormatter
 from .log import log, bold, section_header, explanation
 from .polish_targets import polish_target_sequences
-from .misc import get_ascii_art, load_fasta, get_default_thread_count
+from .misc import get_ascii_art, load_fasta
 from .version import __version__
 
 
@@ -30,7 +30,7 @@ def main():
     assembly_seqs = load_assembly(args.assembly)
     alignments = load_alignments(args.sam1, args.sam2, args.max_errors)
     new_lengths = polish_target_sequences(alignments, assembly_seqs, args.debug, args.min_depth,
-                                          args.min_fraction, args.threads)
+                                          args.min_fraction)
     finished_message(start_time, new_lengths)
 
 
@@ -58,8 +58,6 @@ def parse_args():
     setting_args.add_argument('-f', '--min_fraction', type=float, default=0.5,
                               help='A base must make up at least this fraction of the pileup to '
                                    'be considered valid')
-    setting_args.add_argument('-t', '--threads', type=int, default=get_default_thread_count(),
-                              help='Number of threads')
 
     setting_args.add_argument('--debug', action='store_true',
                               help='Output lots of extra information (for debugging purposes)')
@@ -101,7 +99,6 @@ def starting_message(args):
     log(f'  --max_errors {args.max_errors}')
     log(f'  --min_depth {args.min_depth}')
     log(f'  --min_fraction {args.min_fraction}')
-    log(f'  --threads {args.threads}')
     log()
     check_python()
     return datetime.datetime.now()
