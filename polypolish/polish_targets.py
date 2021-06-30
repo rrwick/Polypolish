@@ -1,13 +1,13 @@
 """
 Copyright 2021 Ryan Wick (rrwick@gmail.com)
-https://github.com/rrwick/Repeatish
+https://github.com/rrwick/Polypolish
 
-This file is part of Repeatish. Repeatish is free software: you can redistribute it and/or modify
+This file is part of Polypolish. Polypolish is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by the Free Software Foundation,
-either version 3 of the License, or (at your option) any later version. Repeatish is distributed
+either version 3 of the License, or (at your option) any later version. Polypolish is distributed
 in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more
-details. You should have received a copy of the GNU General Public License along with Repeatish.
+details. You should have received a copy of the GNU General Public License along with Polypolish.
 If not, see <http://www.gnu.org/licenses/>.
 """
 
@@ -18,26 +18,23 @@ from .alignment import get_multi_alignment_read_names, print_alignment_info
 from .log import log, section_header, explanation
 
 
-def mask_target_sequences(alignments, target_seqs, debug):
-    section_header('Masking target sequences')
-    explanation('Repeatish masks out any target bases which appear to be in error. It does this '
+def polish_target_sequences(alignments, assembly_seqs, debug):
+    section_header('Masking assembly sequences')
+    explanation('Polypolish masks out any target bases which appear to be in error. It does this '
                 'by generating a pileup using all of the alignments and looking for positions '
                 'where the matching pileup bases (read bases which match the reference) total '
                 'less than half of the expected depth.')
 
     mask_positions = {}
-    for target_name, target_seq in target_seqs:
-        mask_positions_one_target = \
-            get_mask_positions(target_name, target_seq, alignments, debug)
-        mask_positions[target_name] = mask_positions_one_target
-    return mask_positions
+    for target_name, target_seq in assembly_seqs:
+        polish_target_sequence(target_name, target_seq, alignments, debug)
 
 
-def get_mask_positions(target_name, target_seq, alignments, debug):
-    log(f'Masking {target_name}')
+def polish_target_sequence(target_name, target_seq, alignments, debug):
+    log(f'Polishing {target_name}')
     log(f'  {len(target_seq):,} bp total')
 
-    mask_positions = set()
+    changed_positions = set()
     pileup, depths_by_pos = get_pileup(alignments, target_name, target_seq)
     mean_depth = statistics.mean(depths_by_pos.values())
     log(f'  mean read depth: {mean_depth:.1f}x')
@@ -46,45 +43,58 @@ def get_mask_positions(target_name, target_seq, alignments, debug):
     have = 'has' if uncovered == 1 else 'have'
     log(f'  {uncovered:,} bp {have} a depth of zero ({coverage:.3f}% coverage)')
 
-    match_fraction_distribution = collections.defaultdict(int)
     if debug:
         log()
         log('Column_1=ref_pos  Column_2=ref_base  Column_3=depth  Column_4=match_fraction  '
             'Column_5=read_pileup')
+
+    new_bases = []
     for i in range(len(target_seq)):
         read_base_counts = pileup[i]
         depth = depths_by_pos[i]
         ref_base = target_seq[i]
-        if ref_base in read_base_counts:
-            match_count = read_base_counts[ref_base]
-        else:
-            match_count = 0
+
         if depth > 0.0:
-            match_fraction = match_count / depth
-            bad_position = match_fraction < 0.5
-            if bad_position:
-                mask_positions.add(i)
-            if debug:
-                result = 'FAIL' if bad_position else 'pass'
-                count_str = ', '.join([f'{b}x{c}' for b, c in read_base_counts.items()])
-                debug_str = f'  {i}  {ref_base}  {depth:.1f}  {match_fraction:.5f}  {result}  ' \
-                    f'{count_str}'
-                match_fraction_distribution[match_fraction] += 1
-                log(debug_str)
-    mask_count = len(mask_positions)
-    mask_percent = 100.0 * mask_count / len(target_seq)
-    estimated_accuracy = 100.0 - mask_percent
-    if debug:
-        log()
-        print_match_fraction_distribution(match_fraction_distribution)
-        log('Masked positions:')
-        log('  ' + ', '.join([str(i) for i in sorted(mask_positions)]))
-        log()
-    positions = 'position' if mask_count == 1 else 'positions'
-    log(f'  {mask_count:,} {positions} masked ({mask_percent:.3f}% of total positions)')
-    log(f'  estimated target sequence accuracy: {estimated_accuracy:.3f}%')
+            target_count = 0.5 * depth
+            valid_bases = [b for b, c in read_base_counts.items() if c >= target_count]
+        else:
+            valid_bases = []
+
+        if len(valid_bases) == 0:
+            new_base = ref_base
+            status = 'no_reads'
+        elif len(valid_bases) == 1:
+            new_base = valid_bases[0]
+            if new_base == ref_base:
+                status = 'kept'
+            else:
+                changed_positions.add(i)
+                status = 'changed'
+        else:  # multiple valid bases
+            new_base = ref_base
+            status = 'multiple'
+
+        if debug:
+            count_str = ','.join([f'{b}x{c}' for b, c in read_base_counts.items()])
+            debug_str = f'  {i}  {ref_base}  {depth:.1f}  {count_str}  {new_base}  {status}'
+            log(debug_str)
+
+        new_bases.append(new_base)
+
+    changed_count = len(changed_positions)
+    changed_percent = 100.0 * changed_count / len(target_seq)
+    estimated_accuracy = 100.0 - changed_percent
+
+    positions = 'position' if changed_count == 1 else 'positions'
+    log(f'  {changed_count:,} {positions} changed ({changed_percent:.3f}% of total positions)')
+    log(f'  estimated assembly sequence accuracy: {estimated_accuracy:.3f}%')
     log()
-    return mask_positions
+
+    new_sequence = ''.join(new_bases)
+    new_sequence = new_sequence.replace('-', '')
+
+    print(f'>{target_name}_polished')
+    print(new_sequence)
 
 
 def print_match_fraction_distribution(match_fraction_distribution):
@@ -149,7 +159,7 @@ def get_pileup(alignments, target_name, target_seq):
 
 def select_best_alignments(alignments, mask_positions, read_pair_names, read_count, target_seqs):
     section_header('Selecting best alignments')
-    explanation('Repeatish now chooses the best alignment(s) for each read, ignoring the masked '
+    explanation('Polypolish now chooses the best alignment(s) for each read, ignoring the masked '
                 'positions of the target sequence. I.e. each read\'s alignments are ranked from '
                 'fewest-errors to most-errors in unmasked positions of the reference, and only '
                 'the best alignments are kept.')

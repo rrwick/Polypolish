@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """
 Copyright 2021 Ryan Wick (rrwick@gmail.com)
-https://github.com/rrwick/Repeatish
+https://github.com/rrwick/Polypolish
 
-This file is part of Repeatish. Repeatish is free software: you can redistribute it and/or modify
+This file is part of Polypolish. Polypolish is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by the Free Software Foundation,
-either version 3 of the License, or (at your option) any later version. Repeatish is distributed
+either version 3 of the License, or (at your option) any later version. Polypolish is distributed
 in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more
-details. You should have received a copy of the GNU General Public License along with Repeatish.
+details. You should have received a copy of the GNU General Public License along with Polypolish.
 If not, see <http://www.gnu.org/licenses/>.
 """
 
@@ -16,13 +16,11 @@ import argparse
 import random
 import sys
 
-from .alignment import align_reads, output_alignments_to_stdout, verify_no_multi_alignments, \
-    fix_sam_pairing
+from .alignment import align_reads
 from .help_formatter import MyParser, MyHelpFormatter
-from .insert_size import get_insert_size_distribution, select_alignments_using_insert_size, \
-    final_alignment_selection, set_sam_flags
+from .insert_size import get_insert_size_distribution, select_alignments_using_insert_size
 from .log import log, bold, section_header, explanation
-from .mask_targets import mask_target_sequences, select_best_alignments
+from .polish_targets import polish_target_sequences
 from .misc import get_default_thread_count, get_ascii_art, load_fasta
 from .software import check_python, check_minimap2
 from .version import __version__
@@ -32,35 +30,27 @@ def main():
     args = parse_args()
     starting_message(args)
     random.seed(args.seed)
-    target_seqs = load_fasta(args.target)
+    assembly_seqs = load_fasta(args.assembly)
 
-    alignments, read_pair_names, read_count, header_lines, unaligned = \
-        align_reads(args.target, args.short1, args.short2, args.threads, args.max_errors,
+    alignments, read_pair_names, read_count = \
+        align_reads(args.assembly, args.short1, args.short2, args.threads, args.max_errors,
                     args.debug)
 
     insert_size_distribution = get_insert_size_distribution(alignments)
     select_alignments_using_insert_size(alignments, insert_size_distribution, read_pair_names,
                                         read_count)
 
-    mask_positions = mask_target_sequences(alignments, target_seqs, args.debug)
-    select_best_alignments(alignments, mask_positions, read_pair_names, read_count, target_seqs)
-
-    final_alignment_selection(alignments, insert_size_distribution, read_pair_names, read_count)
-    verify_no_multi_alignments(alignments, read_pair_names)
-    set_sam_flags(alignments, unaligned, read_pair_names, insert_size_distribution)
-    fix_sam_pairing(alignments, unaligned, read_pair_names)
-    output_alignments_to_stdout(alignments, read_pair_names, header_lines, unaligned)
+    polish_target_sequences(alignments, assembly_seqs, args.debug)
 
 
 def parse_args():
     description = 'R|' + get_ascii_art() + '\n' + \
-                  bold('Repeatish: a tool for polishing a long-read assembly - repeats included')
+                  bold('Polypolish: a tool for polishing a long-read assembly - repeats included')
     parser = MyParser(description=description, formatter_class=MyHelpFormatter, add_help=False)
 
     required_args = parser.add_argument_group('Required arguments')
-    required_args.add_argument('-x', '--target', type=str, required=True,
-                               help='Alignment target (a long-read assembled genome in FASTA '
-                                    'format)')
+    required_args.add_argument('-a', '--assembly', type=str, required=True,
+                               help='Assembly to polish (FASTA format)')
     required_args.add_argument('-1', '--short1', type=str, required=True,
                                help='Input short reads, first in pair (FASTQ format)')
     required_args.add_argument('-2', '--short2', type=str, required=True,
@@ -81,7 +71,7 @@ def parse_args():
     help_args = parser.add_argument_group('Help')
     help_args.add_argument('-h', '--help', action='help', default=argparse.SUPPRESS,
                            help='Show this help message and exit')
-    help_args.add_argument('--version', action='version', version='Repeatish v' + __version__,
+    help_args.add_argument('--version', action='version', version='Polypolish v' + __version__,
                            help="Show program's version number and exit")
 
     # If no arguments were used, print the base-level help which lists possible commands.
@@ -93,21 +83,21 @@ def parse_args():
 
 
 def starting_message(args):
-    section_header('Starting Repeatish')
-    explanation('Repeatish is a paired-end read aligner which aims to produce high-quality '
+    section_header('Starting Polypolish')
+    explanation('Polypolish is a paired-end read aligner which aims to produce high-quality '
                 'alignments for polishing. Specifically, it takes as input paired-end short reads '
                 'and a haploid genome assembly to be polished (e.g. a long-read assembly). '
                 'Instead of simply aligning each read to its best location (as most aligners do), '
                 'it aims to align reads to where they will be most useful for polishing.')
-    log(f'Repeatish version: v{__version__}')
+    log(f'Polypolish version: v{__version__}')
     log(f'Using {args.threads} threads')
     log()
     log('Input short reads:')
     log(f'  {args.short1}')
     log(f'  {args.short2}')
     log()
-    log('Target sequence:')
-    log(f'  {args.target}')
+    log('Input assembly:')
+    log(f'  {args.assembly}')
     log()
     check_requirements()
     log()

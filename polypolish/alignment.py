@@ -1,13 +1,13 @@
 """
 Copyright 2021 Ryan Wick (rrwick@gmail.com)
-https://github.com/rrwick/Repeatish
+https://github.com/rrwick/Polypolish
 
-This file is part of Repeatish. Repeatish is free software: you can redistribute it and/or modify
+This file is part of Polypolish. Polypolish is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by the Free Software Foundation,
-either version 3 of the License, or (at your option) any later version. Repeatish is distributed
+either version 3 of the License, or (at your option) any later version. Polypolish is distributed
 in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more
-details. You should have received a copy of the GNU General Public License along with Repeatish.
+details. You should have received a copy of the GNU General Public License along with Polypolish.
 If not, see <http://www.gnu.org/licenses/>.
 """
 
@@ -20,8 +20,8 @@ from .misc import run_command, iterate_fastq, reverse_complement
 
 
 def align_reads(target, short1, short2, threads, max_errors, debug):
-    section_header('Aligning short reads to target sequence')
-    explanation('Repeatish uses minimap2 to align the short reads to the target sequence. The '
+    section_header('Aligning short reads to assembly sequence')
+    explanation('Polypolish uses minimap2 to align the short reads to the assembly sequence. The '
                 'alignment is done in an unpaired manner, and all end-to-end alignments are kept '
                 'for each read.')
 
@@ -37,7 +37,7 @@ def align_reads(target, short1, short2, threads, max_errors, debug):
         add_secondary_read_seqs(alignments, read_pair_names)
         filter_alignments(alignments, read_pair_names, max_errors, unaligned)
         print_alignment_info(alignments, read_count, read_pair_names)
-        return alignments, read_pair_names, read_count, header_lines, unaligned
+        return alignments, read_pair_names, read_count
 
 
 def combine_reads_into_one_file(short1, short2, temp_dir):
@@ -241,21 +241,7 @@ def get_multi_alignment_read_names(read_pair_names, alignments):
     return multi_alignment_read_names
 
 
-cdef class Alignment(object):
-    cdef public str read_name    # SAM column 1
-    cdef public int sam_flags    # SAM column 2
-    cdef public str ref_name     # SAM column 3
-    cdef public int ref_start    # SAM column 4
-    cdef public int ref_end      # not in SAM - calculated from CIGAR
-    cdef public int mapq         # SAM column 5
-    cdef public str cigar        # SAM column 6
-    cdef public str rnext        # SAM column 7
-    cdef public int pnext        # SAM column 8
-    cdef public int tlen         # SAM column 9
-    cdef public str read_seq     # SAM column 10
-    cdef public str read_qual    # SAM column 11
-    cdef public str tags         # SAM columns 12+
-    cdef public int mismatches   # in the NM tag
+class Alignment(object):
 
     def __init__(self, sam_line):
         parts = sam_line.strip().split('\t')
@@ -301,7 +287,7 @@ cdef class Alignment(object):
     def is_on_forward_strand(self):
         return not self.has_flag(16)
 
-    def has_flag(self, int flag):
+    def has_flag(self, flag):
         return bool(self.sam_flags & flag)
 
     def get_read_name_without_1_2(self):
@@ -453,7 +439,7 @@ def output_alignments_to_stdout(alignments, read_pair_names, header_lines, unali
 
 def get_mapq(alignment_count):
     """
-    Repeatish's MAPQ system is based on the number of possible alignments for that read:
+    Polypolish's MAPQ system is based on the number of possible alignments for that read:
       60 = only 1 alignment
        3 = 2 possible alignments
        2 = 3 possible alignments
