@@ -20,7 +20,7 @@ from .alignment import load_alignments
 from .help_formatter import MyParser, MyHelpFormatter
 from .log import log, bold, section_header, explanation
 from .polish_targets import polish_target_sequences
-from .misc import get_ascii_art, load_fasta
+from .misc import get_ascii_art, load_fasta, check_python_version
 from .version import __version__
 
 
@@ -31,7 +31,7 @@ def main():
     alignments = load_alignments(args.sam1, args.sam2, args.max_errors)
     new_lengths = polish_target_sequences(alignments, assembly_seqs, args.debug, args.min_depth,
                                           args.min_fraction)
-    finished_message(start_time, new_lengths)
+    finished_message(start_time, new_lengths, args.debug)
 
 
 def parse_args():
@@ -103,7 +103,7 @@ def starting_message(args):
     else:
         log(f'  --debug {args.debug}')
     log()
-    check_python()
+    check_python_version()
     return datetime.datetime.now()
 
 
@@ -131,13 +131,6 @@ def load_assembly(assembly_filename):
         log(f'  {name} ({len(seq):,} bp)')
     log()
     return assembly_seqs
-
-
-def check_python():
-    major, minor = sys.version_info.major, sys.version_info.minor
-    good_version = (major >= 3 and minor >= 6)
-    if not good_version:
-        sys.exit('Error: Polypolish requires Python 3.6 or later')
 
 
 if __name__ == '__main__':

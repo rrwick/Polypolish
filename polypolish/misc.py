@@ -102,3 +102,8 @@ def get_ascii_art():
                  bold_yellow(r"                   __/ || |                             ") + '\n' +
                  bold_yellow(r"                  |___/ |_|                             ") + '\n')
     return ascii_art
+
+
+def check_python_version():
+    if sys.version_info.major < 3 or sys.version_info.minor < 6:
+        sys.exit('\nError: Polypolish requires Python 3.6 or later')
