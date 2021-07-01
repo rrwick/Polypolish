@@ -58,9 +58,9 @@ def parse_args():
     setting_args.add_argument('-f', '--min_fraction', type=float, default=0.5,
                               help='A base must make up at least this fraction of the pileup to '
                                    'be considered valid')
-
-    setting_args.add_argument('--debug', action='store_true',
-                              help='Output lots of extra information (for debugging purposes)')
+    setting_args.add_argument('--debug', type=str,
+                              help='Optional file in which to store per-base information for '
+                                   'debugging purposes')
 
     help_args = parser.add_argument_group('Help')
     help_args.add_argument('-h', '--help', action='help', default=argparse.SUPPRESS,
@@ -78,12 +78,11 @@ def parse_args():
 
 def starting_message(args):
     section_header('Starting Polypolish')
-    explanation('Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor '
-                'incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis '
-                'nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. '
-                'Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu '
-                'fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in '
-                'culpa qui officia deserunt mollit anim id est laborum.')
+    explanation('Polypolish is a tool for polishing genome assemblies with short reads. Unlike '
+                'other tools in this category, Polypolish uses SAM files where each read has been '
+                'aligned to all possible locations (not just a single best location). This allows '
+                'it to repair errors in repeat regions that other alignment-based polishers '
+                'cannot fix.')
 
     log(f'Polypolish version: v{__version__}')
     log()
@@ -99,23 +98,23 @@ def starting_message(args):
     log(f'  --max_errors {args.max_errors}')
     log(f'  --min_depth {args.min_depth}')
     log(f'  --min_fraction {args.min_fraction}')
+    if args.debug is None:
+        log(f'  not logging debugging information')
+    else:
+        log(f'  --debug {args.debug}')
     log()
     check_python()
     return datetime.datetime.now()
 
 
-def finished_message(start_time, new_lengths):
+def finished_message(start_time, new_lengths, debug):
     section_header('Finished!')
-    explanation('Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor '
-                'incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis '
-                'nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. '
-                'Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu '
-                'fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in '
-                'culpa qui officia deserunt mollit anim id est laborum.')
     log('Polished sequence (to stdout):')
     for new_name, new_length in new_lengths:
         log(f'  {new_name} ({new_length:,} bp)')
     log()
+    if debug is not None:
+        log(f'Per-base debugging info written to {debug}')
     time_to_run = datetime.datetime.now() - start_time
     log(f'Time to run: {time_to_run}')
     log()
@@ -123,12 +122,6 @@ def finished_message(start_time, new_lengths):
 
 def load_assembly(assembly_filename):
     section_header('Loading assembly')
-    explanation('Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor '
-                'incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis '
-                'nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. '
-                'Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu '
-                'fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in '
-                'culpa qui officia deserunt mollit anim id est laborum.')
     assembly_seqs = load_fasta(assembly_filename)
     count = len(assembly_seqs)
     if count == 0:

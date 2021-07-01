@@ -14,18 +14,12 @@ If not, see <http://www.gnu.org/licenses/>.
 import collections
 import re
 
-from .log import log, section_header, explanation, quit_with_error
+from .log import log, section_header, quit_with_error
 from .misc import reverse_complement
 
 
 def load_alignments(sam_filename_1, sam_filename_2, max_errors):
     section_header('Loading alignments')
-    explanation('Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor '
-                'incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis '
-                'nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. '
-                'Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu '
-                'fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in '
-                'culpa qui officia deserunt mollit anim id est laborum.')
     alignments = collections.defaultdict(list)
     load_alignments_one_file(sam_filename_1, alignments, '_1')
     if sam_filename_2 is not None:

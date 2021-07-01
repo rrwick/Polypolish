@@ -18,26 +18,36 @@ from .log import log, section_header, explanation
 
 def polish_target_sequences(alignments, assembly_seqs, debug, min_depth, min_fraction):
     section_header('Polishing assembly sequences')
-    explanation('Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor '
-                'incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis '
-                'nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. '
-                'Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu '
-                'fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in '
-                'culpa qui officia deserunt mollit anim id est laborum.')
+    explanation('For each position in the assembly, Polypolish determines the read depth at that '
+                'position and collects all aligned bases. It then polishes the assembly by '
+                'looking for positions where the pileup unambiguously supports a different '
+                'sequence than the assembly.')
     new_lengths = []
+
+    if debug is not None:
+        debug_file = open(debug, 'wt')
+        write_debug_header(debug_file)
+
+    else:
+        debug_file = None
+
     for target_name, target_seq in assembly_seqs:
-        new_name, new_length = polish_target_sequence(target_name, target_seq, alignments, debug,
-                                                      min_depth, min_fraction)
+        new_name, new_length = polish_target_sequence(target_name, target_seq, alignments,
+                                                      debug_file, min_depth, min_fraction)
         new_lengths.append((new_name, new_length))
+
+    if debug_file is not None:
+        debug_file.close()
+
     return new_lengths
 
 
-def polish_target_sequence(target_name, target_seq, alignments, debug, min_depth, min_fraction):
-    log(f'Polishing {target_name} ({len(target_seq):,} bp):')
+def polish_target_sequence(seq_name, target_seq, alignments, debug_file, min_depth, min_fraction):
+    log(f'Polishing {seq_name} ({len(target_seq):,} bp):')
 
     changed_positions = set()
     log('  Building read pileup:')
-    pileup, depths_by_pos = get_pileup(alignments, target_name, target_seq)
+    pileup, depths_by_pos = get_pileup(alignments, seq_name, target_seq)
     mean_depth = statistics.mean(depths_by_pos.values())
     log(f'    mean read depth: {mean_depth:.1f}x')
     uncovered = sum(1 if d == 0.0 else 0 for d in depths_by_pos.values())
@@ -46,26 +56,18 @@ def polish_target_sequence(target_name, target_seq, alignments, debug, min_depth
     log(f'    {uncovered:,} bp {have} a depth of zero ({coverage:.4f}% coverage)')
 
     log('  Repairing assembly sequence:')
-    if debug:
-        log()
-        log('Column_1=ref_pos  Column_2=ref_base  Column_3=depth  Column_4=match_fraction  '
-            'Column_5=read_pileup')
-
     new_bases = []
     for i in range(len(target_seq)):
         read_base_counts = pileup[i]
         depth = depths_by_pos[i]
         ref_base = target_seq[i]
+        new_base = ref_base
 
-        if depth > 0.0:
-            target_count = max(min_depth, min_fraction * depth)
-            valid_bases = [b for b, c in read_base_counts.items() if c >= target_count]
-        else:
-            valid_bases = []
+        target_count = max(min_depth, int(round(min_fraction * depth)))
+        valid_bases = [b for b, c in read_base_counts.items() if c >= target_count]
 
         if len(valid_bases) == 0:
-            new_base = ref_base
-            status = 'no_reads'
+            status = 'no_valid_option'
         elif len(valid_bases) == 1:
             new_base = valid_bases[0]
             if new_base == ref_base:
@@ -74,13 +76,11 @@ def polish_target_sequence(target_name, target_seq, alignments, debug, min_depth
                 changed_positions.add(i)
                 status = 'changed'
         else:  # multiple valid bases
-            new_base = ref_base
             status = 'multiple'
 
-        if debug:
-            count_str = ','.join([f'{b}x{c}' for b, c in read_base_counts.items()])
-            debug_str = f'  {i}  {ref_base}  {depth:.1f}  {count_str}  {new_base}  {status}'
-            log(debug_str)
+        if debug_file is not None:
+            write_debug_line(debug_file, seq_name, i, ref_base, depth, target_count,
+                             read_base_counts, new_base, status)
 
         new_bases.append(new_base)
 
@@ -93,13 +93,32 @@ def polish_target_sequence(target_name, target_seq, alignments, debug, min_depth
     log(f'    estimated pre-polishing sequence accuracy: {estimated_accuracy:.4f}%')
     log()
 
-    new_name = f'{target_name}_polypolish'
+    new_name = f'{seq_name}_polypolish'
     new_sequence = ''.join(new_bases)
     new_sequence = new_sequence.replace('-', '')
 
     print(f'>{new_name}')
     print(new_sequence)
     return new_name, len(new_sequence)
+
+
+def write_debug_header(debug_file):
+    debug_file.write('sequence_name\t'
+                     'assembly_pos\t'
+                     'assembly_base\t'
+                     'depth\t'
+                     'threshold_depth\t'
+                     'pileup\t'
+                     'status\t'
+                     'new_base\n')
+
+
+def write_debug_line(debug_file, seq_name, i, ref_base, depth, target_count, read_base_counts,
+                     new_base, status):
+    pileup_str = ','.join([f'{b}x{c}' for b, c in read_base_counts.items()])
+    debug_str = f'{seq_name}\t{i}\t{ref_base}\t{depth:.1f}\t{target_count}\t{pileup_str}\t' \
+                f'{status}\t{new_base}\n'
+    debug_file.write(debug_str)
 
 
 def get_pileup(alignments, target_name, target_seq):
