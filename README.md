@@ -1,6 +1,6 @@
 # Polypolish
 
-Polypolish is a tool for generating short-read alignments that are informed by long-read alignments. By taking long reads into account, Polypolish can achieve better short-read alignments in repetitive parts of the genome than a naive short-read aligner.
+Polypolish is a tool for polishing genome assemblies with short reads. Unlike other tools in this category, Polypolish uses SAM files where each read has been aligned to all possible locations (not just a single best location). This allows it to repair errors in repeat regions that other alignment-based polishers cannot fix.
 
 For installation instructions, usage, deeper explanations and more, head over to the [Polypolish wiki](https://github.com/rrwick/Polypolish/wiki)!
 
