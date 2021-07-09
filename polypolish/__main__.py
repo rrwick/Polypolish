@@ -36,15 +36,15 @@ def main():
 
 def parse_args():
     description = 'R|' + get_ascii_art() + '\n' + \
-                  bold('Polypolish: a tool for polishing a long-read assembly - repeats included')
+                  bold('Polypolish: a tool for polishing a long-read assembly with short reads')
     parser = MyParser(description=description, formatter_class=MyHelpFormatter, add_help=False)
 
-    required_args = parser.add_argument_group('Required arguments')
+    required_args = parser.add_argument_group('Inputs')
     required_args.add_argument('-a', '--assembly', type=str, required=True,
-                               help='Assembly to polish (FASTA format)')
+                               help='Assembly to polish (FASTA format, required)')
     required_args.add_argument('-1', '--sam1', type=str, required=True,
                                help='Input short read alignments, unpaired or first in pair '
-                                    '(SAM format)')
+                                    '(SAM format, required)')
     required_args.add_argument('-2', '--sam2', type=str, required=False,
                                help='Input short read alignments, second in pair (SAM format)')
 
