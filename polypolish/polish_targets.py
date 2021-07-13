@@ -67,7 +67,7 @@ def polish_target_sequence(seq_name, target_seq, alignments, debug_file, min_dep
         valid_bases = [b for b, c in read_base_counts.items() if c >= target_count]
 
         if len(valid_bases) == 0:
-            status = 'no_valid_option'
+            status = 'none'
         elif len(valid_bases) == 1:
             new_base = valid_bases[0]
             if new_base == ref_base:
@@ -103,11 +103,11 @@ def polish_target_sequence(seq_name, target_seq, alignments, debug_file, min_dep
 
 
 def write_debug_header(debug_file):
-    debug_file.write('sequence_name\t'
-                     'assembly_pos\t'
-                     'assembly_base\t'
+    debug_file.write('name\t'
+                     'pos\t'
+                     'base\t'
                      'depth\t'
-                     'threshold_depth\t'
+                     'threshold\t'
                      'pileup\t'
                      'status\t'
                      'new_base\n')
@@ -133,7 +133,7 @@ def get_pileup(alignments, target_name, target_seq):
             aligned_bases = a.get_read_bases_for_each_target_base(ref_seq)
             depth_contribution = 1.0 / len(read_alignments)
 
-            # Alignments that end on in a homopolymer can cause trouble, as they can align cleanly
+            # Alignments that end in a homopolymer can cause trouble, as they can align cleanly
             # (without an indel) even when an indel is needed.
             #
             # For example, an alignment should look like this:
