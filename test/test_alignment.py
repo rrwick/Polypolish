@@ -34,7 +34,6 @@ def test_add_secondary_read_seqs():
     alignments = {'read': [a_1, a_2]}
     polypolish.alignment.add_secondary_read_seqs(alignments)
     assert a_2.read_seq == 'ACGTACGTCG'
-    assert a_2.read_qual == '0123456789'
 
     # Both reads on - strand.
     a_1 = polypolish.alignment.Alignment('read\t16\tref\t10\t\t10M\t\t\t\tACGTACGTCG\t0123456789')
@@ -42,7 +41,6 @@ def test_add_secondary_read_seqs():
     alignments = {'read': [a_1, a_2]}
     polypolish.alignment.add_secondary_read_seqs(alignments)
     assert a_2.read_seq == 'ACGTACGTCG'
-    assert a_2.read_qual == '0123456789'
 
     # Primary read on + strand, secondary read on - strand.
     a_1 = polypolish.alignment.Alignment('read\t0\tref\t10\t\t10M\t\t\t\tACGTACGTCG\t0123456789')
@@ -50,7 +48,6 @@ def test_add_secondary_read_seqs():
     alignments = {'read': [a_1, a_2]}
     polypolish.alignment.add_secondary_read_seqs(alignments)
     assert a_2.read_seq == 'CGACGTACGT'
-    assert a_2.read_qual == '9876543210'
 
     # Primary read on - strand, secondary read on + strand.
     a_1 = polypolish.alignment.Alignment('read\t16\tref\t10\t\t10M\t\t\t\tACGTACGTCG\t0123456789')
@@ -58,7 +55,6 @@ def test_add_secondary_read_seqs():
     alignments = {'read': [a_1, a_2]}
     polypolish.alignment.add_secondary_read_seqs(alignments)
     assert a_2.read_seq == 'CGACGTACGT'
-    assert a_2.read_qual == '9876543210'
 
 
 def test_starts_and_ends_with_match():

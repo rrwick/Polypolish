@@ -67,38 +67,33 @@ def filter_alignments(alignments, max_errors):
 
 def add_secondary_read_seqs(alignments):
     """
-    Secondary alignments don't have read sequences or qualities, but we will need those later, so
-    we add them in now.
+    Secondary alignments don't have read sequences, but we will need those later, so we add them in
+    now.
     """
     for name in list(alignments.keys()):
         if len(alignments[name]) == 0:
             continue
-        seq, qual = None, None
+        seq = None
         for a in alignments[name]:
             read_seq = a.read_seq
-            read_qual = a.read_qual
             if a.is_secondary():
-                assert read_seq == '*' and read_qual == '*'
+                assert read_seq == '*'
             else:
-                assert read_seq != '*' and read_qual != '*'
+                assert read_seq != '*'
                 if a.is_on_forward_strand():
                     seq = read_seq
-                    qual = read_qual
                 else:
                     seq = reverse_complement(read_seq)
-                    qual = read_qual[::-1]
                 break
-        assert seq is not None and qual is not None
+        assert seq is not None
         for a in alignments[name]:
             if a.is_secondary():
                 if a.is_on_forward_strand():
                     a.read_seq = seq
-                    a.read_qual = qual
                 else:
                     a.read_seq = reverse_complement(seq)
-                    a.read_qual = qual[::-1]
         for a in alignments[name]:
-            assert a.read_seq != '*' and a.read_qual != '*'
+            assert a.read_seq != '*'
 
 
 class Alignment(object):
@@ -114,7 +109,6 @@ class Alignment(object):
         self.ref_start = int(parts[3]) - 1  # switch from SAM's 1-based to Python's 0-based
         self.cigar = parts[5]
         self.read_seq = parts[9]
-        self.read_qual = parts[10]
 
         self.ref_end = get_ref_end(self.ref_start, self.cigar)
 
