@@ -18,12 +18,12 @@ from .log import log, section_header, quit_with_error
 from .misc import reverse_complement
 
 
-def load_alignments(sam_filename_1, sam_filename_2, max_errors):
+def load_alignments(sam_filenames, max_errors):
     section_header('Loading alignments')
     alignments = collections.defaultdict(list)
-    load_alignments_one_file(sam_filename_1, alignments, '_1')
-    if sam_filename_2 is not None:
-        load_alignments_one_file(sam_filename_2, alignments, '_2')
+    for i, sam_filename in enumerate(sam_filenames):
+        read_name_suffix = f'_{i+1}'
+        load_alignments_one_file(sam_filename, alignments, read_name_suffix)
     log()
     add_secondary_read_seqs(alignments)
     filter_alignments(alignments, max_errors)
