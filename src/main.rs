@@ -10,6 +10,7 @@
 // License along with Polypolish. If not, see <http://www.gnu.org/licenses/>.
 
 mod log;
+mod misc;
 
 use std::path::PathBuf;
 use clap::{AppSettings, Clap};
@@ -50,8 +51,17 @@ struct Opts {
 
 fn main() {
     let opts: Opts = Opts::parse();
+    check_inputs_exist(&opts);
     starting_message(&opts);
     load_assembly(&opts.assembly);
+}
+
+
+fn check_inputs_exist(opts: &Opts) {
+    misc::check_if_file_exists(&opts.assembly);
+    for s in &opts.sam {
+        misc::check_if_file_exists(&s);
+    }
 }
 
 
@@ -89,20 +99,13 @@ fn load_assembly(assembly_filename: &PathBuf) {
     let result = fasta::Reader::from_file(assembly_filename);
     match result {
         Ok(_) => (),
-        Err(ref e) => quit_with_error(&e.to_string())
+        Err(ref e) => misc::quit_with_error(&e.to_string())
     }
-
     let mut records = result.unwrap().records();
+
     while let Some(Ok(record)) = records.next() {
-        eprintln!("  {} ({} bp)", record.id(), record.seq().len().to_formatted_string(&Locale::en));
+        eprintln!("{} ({} bp)", record.id(), record.seq().len().to_formatted_string(&Locale::en));
         // TODO: save the sequence in a vector or something
     }
     // TODO: return the sequences
-}
-
-
-fn quit_with_error(text: &String) {
-    eprintln!();
-    eprintln!("Error: {}", text);
-    std::process::exit(1);
 }
