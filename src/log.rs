@@ -17,7 +17,7 @@ pub fn section_header(text: &str) {
     let now = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
     let date = format!("({})", now);
     eprintln!();
-    eprintln!("{} {}", text.bold().yellow().underline(), date.dimmed());
+    eprintln!("{} {}", text.bold().bright_yellow().underline(), date.dimmed());
 }
 
 

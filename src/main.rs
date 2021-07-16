@@ -13,6 +13,8 @@ mod log;
 
 use std::path::PathBuf;
 use clap::{AppSettings, Clap};
+use bio::io::fasta;
+use num_format::{Locale, ToFormattedString};
 
 
 #[derive(Clap)]
@@ -49,8 +51,8 @@ struct Opts {
 fn main() {
     let opts: Opts = Opts::parse();
     starting_message(&opts);
+    load_assembly(&opts.assembly);
 }
-
 
 
 fn starting_message(opts: &Opts) {
@@ -78,4 +80,29 @@ fn starting_message(opts: &Opts) {
         None => {eprintln!("  not logging debugging information");},
     }
     eprintln!();
+}
+
+
+fn load_assembly(assembly_filename: &PathBuf) {
+    log::section_header("Loading assembly");
+
+    let result = fasta::Reader::from_file(assembly_filename);
+    match result {
+        Ok(_) => (),
+        Err(ref e) => quit_with_error(&e.to_string())
+    }
+
+    let mut records = result.unwrap().records();
+    while let Some(Ok(record)) = records.next() {
+        eprintln!("  {} ({} bp)", record.id(), record.seq().len().to_formatted_string(&Locale::en));
+        // TODO: save the sequence in a vector or something
+    }
+    // TODO: return the sequences
+}
+
+
+fn quit_with_error(text: &String) {
+    eprintln!();
+    eprintln!("Error: {}", text);
+    std::process::exit(1);
 }
