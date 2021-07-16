@@ -10,42 +10,41 @@
 // License along with Polypolish. If not, see <http://www.gnu.org/licenses/>.
 
 use std::path::PathBuf;
-use structopt::StructOpt;
+use clap::{AppSettings, Clap};
 
 
-#[derive(Debug, StructOpt)]
-#[structopt(name = "Polypolish", about = "short-read polishing of long-read assemblies\n\
-                                          github.com/rrwick/Polypolish")]
-struct Opt {
-    #[structopt(long = "debug",
-                help = "Optional file to store per-base information for debugging purposes")]
+#[derive(Clap)]
+#[clap(name = "Polypolish", about = "short-read polishing of long-read assemblies\n\
+                                     github.com/rrwick/Polypolish")]
+#[clap(setting = AppSettings::ColoredHelp)]
+struct Opts {
+    /// Optional file to store per-base information for debugging purposes
+    #[clap(long = "debug")]
     debug: Option<PathBuf>,
 
-    #[structopt(short = "m", long = "max_errors", default_value = "10",
-                help = "Ignore alignments with more than this many mismatches and indels")]
+    /// Ignore alignments with more than this many mismatches and indels
+    #[clap(short = 'm', long = "max_errors", default_value = "10")]
     max_errors: i32,
 
-    #[structopt(short = "d", long = "min_depth", default_value = "5",
-                help = "A base must occur at least this many times in the pileup to be considered \
-                        valid")]
+    /// A base must occur at least this many times in the pileup to be considered valid
+    #[clap(short = 'd', long = "min_depth", default_value = "5")]
     min_depth: i32,
 
-    #[structopt(short = "f", long = "min_fraction", default_value = "0.5",
-                help = "A base must make up at least this fraction of the pileup to be considered \
-                        valid")]
+    /// A base must make up at least this fraction of the pileup to be considered valid
+    #[clap(short = 'f', long = "min_fraction", default_value = "0.5")]
     min_fraction: f64,
 
-    #[structopt(parse(from_os_str),
-                help = "Assembly to polish (FASTA format)")]
+    /// Assembly to polish (FASTA format)
+    #[clap(parse(from_os_str))]
     assembly: PathBuf,
 
-    #[structopt(parse(from_os_str),
-                help = "Short read alignments (SAM format, one or more files)")]
+    /// Short read alignments (SAM format, one or more files)
+    #[clap(parse(from_os_str))]
     sam: Vec<PathBuf>,
 }
 
 
 fn main() {
-    let opt = Opt::from_args();
-    println!("{:?}", opt);
+    let opts: Opts = Opts::parse();
+    println!("{:?}", opts.assembly);
 }
