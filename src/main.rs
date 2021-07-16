@@ -16,8 +16,8 @@ use clap::{AppSettings, Clap};
 
 
 #[derive(Clap)]
-#[clap(name = "Polypolish", about = "short-read polishing of long-read assemblies\n\
-                                     github.com/rrwick/Polypolish")]
+#[clap(name = log::ascii_art(), about = "short-read polishing of long-read assemblies\n\
+                                         github.com/rrwick/Polypolish")]
 #[clap(setting = AppSettings::ColoredHelp)]
 struct Opts {
     /// Optional file to store per-base information for debugging purposes
