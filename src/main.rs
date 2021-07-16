@@ -46,5 +46,27 @@ struct Opts {
 
 fn main() {
     let opts: Opts = Opts::parse();
-    println!("{:?}", opts.assembly);
+    starting_message(&opts);
+}
+
+
+
+fn starting_message(opts: &Opts) {
+    println!("Input assembly:");
+    println!("  {}", opts.assembly.display());
+    println!();
+    println!("Input short-read alignments:");
+    for s in &opts.sam {
+        println!("  {}", s.display());
+    }
+    println!();
+    println!("Settings:");
+    println!("  --max_errors {}", opts.max_errors);
+    println!("  --min_depth {}", opts.min_depth);
+    println!("  --min_fraction {}", opts.min_fraction);
+    match &opts.debug {
+        Some(v) => {println!("  --debug {}", v.display());}
+        None => {println!("  not logging debugging information");},
+    }
+    println!();
 }
