@@ -9,6 +9,8 @@
 // Public License for more details. You should have received a copy of the GNU General Public
 // License along with Polypolish. If not, see <http://www.gnu.org/licenses/>.
 
+mod log;
+
 use std::path::PathBuf;
 use clap::{AppSettings, Clap};
 
@@ -35,11 +37,11 @@ struct Opts {
     min_fraction: f64,
 
     /// Assembly to polish (FASTA format)
-    #[clap(parse(from_os_str))]
+    #[clap(parse(from_os_str), required = true)]
     assembly: PathBuf,
 
     /// Short read alignments (SAM format, one or more files)
-    #[clap(parse(from_os_str))]
+    #[clap(parse(from_os_str), required = true)]
     sam: Vec<PathBuf>,
 }
 
@@ -52,21 +54,28 @@ fn main() {
 
 
 fn starting_message(opts: &Opts) {
-    println!("Input assembly:");
-    println!("  {}", opts.assembly.display());
-    println!();
-    println!("Input short-read alignments:");
+    log::section_header("Starting Polypolish");
+    log::explanation("Polypolish is a tool for polishing genome assemblies with short reads. \
+                      Unlike other tools in this category, Polypolish uses SAM files where each \
+                      read has been aligned to all possible locations (not just a single best \
+                      location). This allows it to repair errors in repeat regions that other \
+                      alignment-based polishers cannot fix.");
+
+    eprintln!("Input assembly:");
+    eprintln!("  {}", opts.assembly.display());
+    eprintln!();
+    eprintln!("Input short-read alignments:");
     for s in &opts.sam {
-        println!("  {}", s.display());
+        eprintln!("  {}", s.display());
     }
-    println!();
-    println!("Settings:");
-    println!("  --max_errors {}", opts.max_errors);
-    println!("  --min_depth {}", opts.min_depth);
-    println!("  --min_fraction {}", opts.min_fraction);
+    eprintln!();
+    eprintln!("Settings:");
+    eprintln!("  --max_errors {}", opts.max_errors);
+    eprintln!("  --min_depth {}", opts.min_depth);
+    eprintln!("  --min_fraction {}", opts.min_fraction);
     match &opts.debug {
-        Some(v) => {println!("  --debug {}", v.display());}
-        None => {println!("  not logging debugging information");},
+        Some(v) => {eprintln!("  --debug {}", v.display());}
+        None => {eprintln!("  not logging debugging information");},
     }
-    println!();
+    eprintln!();
 }
