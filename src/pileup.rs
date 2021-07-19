@@ -13,7 +13,7 @@ use std::collections::HashMap;
 
 
 #[derive(Debug)]
-struct PileupBase {
+pub struct PileupBase {
     original: char,
     depth: f64,
     counts: HashMap<String, usize>,
@@ -38,7 +38,7 @@ impl PileupBase {
 
 #[derive(Debug)]
 pub struct Pileup {
-    bases: Vec<PileupBase>,
+    pub bases: Vec<PileupBase>,
 }
 
 impl Pileup {

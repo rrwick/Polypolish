@@ -12,6 +12,7 @@
 mod log;
 mod misc;
 mod pileup;
+mod alignment;
 
 use std::path::PathBuf;
 use std::collections::HashMap;
@@ -55,12 +56,17 @@ fn main() {
     check_inputs_exist(&opts);
     starting_message(&opts);
     let (seq_names, mut pileups) = load_assembly(&opts.assembly);
+    for s in &opts.sam {
+        alignment::process_sam(&s, &pileups);
+    }
 
-    for name in &seq_names {                            // TEMP
-        eprintln!();                                    // TEMP
-        eprintln!("{}", name);                          // TEMP
-        eprintln!("{:?}", pileups.get(name).unwrap());  // TEMP
-    }                                                   // TEMP
+    // TEMP
+    for name in &seq_names {
+        let pileup = pileups.get(name).unwrap();
+        for b in &pileup.bases {
+            eprintln!("{} {:?}", name, b);
+        }
+    }
 }
 
 
