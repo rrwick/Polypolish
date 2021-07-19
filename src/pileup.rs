@@ -9,15 +9,49 @@
 // Public License for more details. You should have received a copy of the GNU General Public
 // License along with Polypolish. If not, see <http://www.gnu.org/licenses/>.
 
-// TODO: define a PileupBase struct:
-//   * reference base (made uppercase)
-//   * counts of read bases
-//   * method to get valid choices
-//   * method to get output sequence
+use std::collections::HashMap;
 
 
-// TODO: define a Pileup struct:
-//   * Vector of PileupBase objects
-//   * method to add an alignment
+#[derive(Debug)]
+struct PileupBase {
+    original: char,
+    depth: f64,
+    counts: HashMap<String, usize>,
+}
+
+impl PileupBase {
+    fn new(original: char) -> PileupBase {
+        PileupBase {
+            original: original,
+            depth: 0.0,
+            counts: HashMap::new(),
+        }
+    }
+    fn add_seq(&mut self, seq: &str, depth_contribution: f64) {
+        *self.counts.entry(seq.to_string()).or_insert(0) += 1;
+        self.depth += depth_contribution;
+    }
+    // TODO: method to get valid choices
+    // TODO: method to get output sequence
+}
 
 
+#[derive(Debug)]
+pub struct Pileup {
+    bases: Vec<PileupBase>,
+}
+
+impl Pileup {
+    pub fn new(seq: &str) -> Pileup {
+        let mut bases = Vec::new();
+        for b in seq.chars() {
+            bases.push(PileupBase::new(b));
+        }
+
+        Pileup {
+            bases: bases,
+        }
+    }
+
+    // TODO: method to add an alignment
+}

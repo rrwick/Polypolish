@@ -14,7 +14,4 @@ textwrap = "0.14"
 term_size = "0.3"
 num-format = "0.4"
 flate2 = "1.0"
-
-[dependencies.clap]
-version = "3.0.0-beta.2"
-features = ["wrap_help"]
+clap = { version = "3.0.0-beta.2", features = ["wrap_help"] }

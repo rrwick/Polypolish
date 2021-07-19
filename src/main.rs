@@ -11,8 +11,10 @@
 
 mod log;
 mod misc;
+mod pileup;
 
 use std::path::PathBuf;
+use std::collections::HashMap;
 use clap::{AppSettings, Clap};
 use num_format::{Locale, ToFormattedString};
 
@@ -52,15 +54,13 @@ fn main() {
     let opts: Opts = Opts::parse();
     check_inputs_exist(&opts);
     starting_message(&opts);
-    load_assembly(&opts.assembly);
-}
+    let (seq_names, mut pileups) = load_assembly(&opts.assembly);
 
-
-fn check_inputs_exist(opts: &Opts) {
-    misc::check_if_file_exists(&opts.assembly);
-    for s in &opts.sam {
-        misc::check_if_file_exists(&s);
-    }
+    for name in &seq_names {                            // TEMP
+        eprintln!();                                    // TEMP
+        eprintln!("{}", name);                          // TEMP
+        eprintln!("{:?}", pileups.get(name).unwrap());  // TEMP
+    }                                                   // TEMP
 }
 
 
@@ -92,13 +92,25 @@ fn starting_message(opts: &Opts) {
 }
 
 
-fn load_assembly(assembly_filename: &PathBuf) {
+fn load_assembly(assembly_filename: &PathBuf) -> (Vec<String>, HashMap<String, pileup::Pileup>) {
     log::section_header("Loading assembly");
 
     let fasta = misc::load_fasta(assembly_filename);
+    let mut seq_names = Vec::new();
+    let mut pileups = HashMap::new();
+
     for (name, sequence) in &fasta {
         eprintln!("{} ({} bp)", name, sequence.len().to_formatted_string(&Locale::en));
+        seq_names.push(name.clone());
+        pileups.insert(name.clone(), pileup::Pileup::new(sequence));
     }
+    (seq_names, pileups)
+}
 
-    // TODO: build a Pileup object
+
+fn check_inputs_exist(opts: &Opts) {
+    misc::check_if_file_exists(&opts.assembly);
+    for s in &opts.sam {
+        misc::check_if_file_exists(&s);
+    }
 }

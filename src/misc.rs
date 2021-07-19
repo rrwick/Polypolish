@@ -32,6 +32,7 @@ pub fn quit_with_error(text: &str) {
     std::process::exit(1);
 }
 
+
 /// This function loads a FASTA file and runs a few checks on the result. If everything looks good,
 /// it returns a vector of name+sequence tuples.
 pub fn load_fasta(filename: &PathBuf) -> Vec<(String, String)> {
@@ -100,17 +101,13 @@ fn is_file_gzipped(filename: &PathBuf) -> bool {
 
 fn load_fasta_not_gzipped(filename: &PathBuf) -> io::Result<Vec<(String, String)>> {
     let mut fasta_seqs = Vec::new();
-
     let file = File::open(&filename)?;
     let reader = BufReader::new(file);
-
     let mut name = String::new();
     let mut sequence = String::new();
     for line in reader.lines() {
         let text = line?;
-        if text.len() == 0 {
-            continue;
-        }
+        if text.len() == 0 {continue;}
         if text.starts_with('>') {
             if name.len() > 0 {
                 fasta_seqs.push((name, sequence));
@@ -138,17 +135,13 @@ fn load_fasta_not_gzipped(filename: &PathBuf) -> io::Result<Vec<(String, String)
 
 fn load_fasta_gzipped(filename: &PathBuf) -> io::Result<Vec<(String, String)>> {
     let mut fasta_seqs = Vec::new();
-
     let file = File::open(&filename)?;
     let reader = BufReader::new(GzDecoder::new(file));
-
     let mut name = String::new();
     let mut sequence = String::new();
     for line in reader.lines() {
         let text = line?;
-        if text.len() == 0 {
-            continue;
-        }
+        if text.len() == 0 {continue;}
         if text.starts_with('>') {
             if name.len() > 0 {
                 fasta_seqs.push((name, sequence));
