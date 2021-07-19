@@ -57,7 +57,7 @@ fn main() {
     starting_message(&opts);
     let (seq_names, mut pileups) = load_assembly(&opts.assembly);
     for s in &opts.sam {
-        alignment::process_sam(&s, &pileups);
+        alignment::process_sam(&s, &mut pileups);
     }
 
     // TEMP
