@@ -12,8 +12,8 @@ chrono = "0.4"
 colored = "2.0"
 textwrap = "0.14"
 term_size = "0.3"
-bio = "*"
 num-format = "0.4"
+flate2 = "1.0"
 
 [dependencies.clap]
 version = "3.0.0-beta.2"

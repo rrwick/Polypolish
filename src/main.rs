@@ -14,7 +14,6 @@ mod misc;
 
 use std::path::PathBuf;
 use clap::{AppSettings, Clap};
-use bio::io::fasta;
 use num_format::{Locale, ToFormattedString};
 
 
@@ -96,16 +95,10 @@ fn starting_message(opts: &Opts) {
 fn load_assembly(assembly_filename: &PathBuf) {
     log::section_header("Loading assembly");
 
-    let result = fasta::Reader::from_file(assembly_filename);
-    match result {
-        Ok(_) => (),
-        Err(ref e) => misc::quit_with_error(&e.to_string())
+    let fasta = misc::load_fasta(assembly_filename);
+    for (name, sequence) in &fasta {
+        eprintln!("{} ({} bp)", name, sequence.len().to_formatted_string(&Locale::en));
     }
-    let mut records = result.unwrap().records();
 
-    while let Some(Ok(record)) = records.next() {
-        eprintln!("{} ({} bp)", record.id(), record.seq().len().to_formatted_string(&Locale::en));
-        // TODO: save the sequence in a vector or something
-    }
-    // TODO: return the sequences
+    // TODO: build a Pileup object
 }
