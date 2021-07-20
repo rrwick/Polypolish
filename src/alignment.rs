@@ -130,19 +130,19 @@ impl Alignment {
 }
 
 
-pub fn process_sam(filename: &PathBuf, pileups: &mut HashMap<String, Pileup>, max_errors: i32) {
+pub fn process_sam(filename: &PathBuf, pileups: &mut HashMap<String, Pileup>,
+                   max_errors: i32) -> (usize, usize, usize) {
     let result = add_to_pileup(filename, pileups, max_errors);
     match result {
-        Ok((_, _)) => ( ),
+        Ok((_, _, _)) => ( ),
         Err(_) => quit_with_error(&format!("unable to load alignments from {:?}", filename)),
     }
-    let (line_count, used_count) = result.unwrap();
-    eprintln!("{} alignments loaded from {:?} ({} used)", line_count, filename, used_count)
+    result.unwrap()
 }
 
 
 pub fn add_to_pileup(filename: &PathBuf, pileups: &mut HashMap<String, Pileup>,
-                     max_errors: i32) -> io::Result<(usize, usize)> {
+                     max_errors: i32) -> io::Result<(usize, usize, usize)> {
     let file = File::open(&filename)?;
     let reader = BufReader::new(file);
 
@@ -152,6 +152,7 @@ pub fn add_to_pileup(filename: &PathBuf, pileups: &mut HashMap<String, Pileup>,
     let mut line_count: usize = 0;
     let mut alignment_count: usize = 0;
     let mut used_count: usize = 0;
+    let mut read_count: usize = 0;
 
     for line in reader.lines() {
         line_count += 1;
@@ -175,17 +176,19 @@ pub fn add_to_pileup(filename: &PathBuf, pileups: &mut HashMap<String, Pileup>,
             current_read_alignments.push(alignment);
         } else {
             used_count += process_one_read(current_read_alignments, pileups, max_errors);
+            read_count += 1;
             current_read_alignments = Vec::new();
             current_read_alignments.push(alignment);
         }
         current_read_name = read_name;
     }
     used_count += process_one_read(current_read_alignments, pileups, max_errors);
+    read_count += 1;
 
     if alignment_count == 0 {
         quit_with_error(&format!("no alignments in {:?}", filename))
     }
-    Ok((alignment_count, used_count))
+    Ok((alignment_count, used_count, read_count))
 }
 
 

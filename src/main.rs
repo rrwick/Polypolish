@@ -58,9 +58,8 @@ fn main() {
     check_inputs_exist(&opts);
     starting_message(&opts);
     let (seq_names, mut pileups) = load_assembly(&opts.assembly);
-    for s in &opts.sam {
-        alignment::process_sam(&s, &mut pileups, opts.max_errors);
-    }
+    load_alignments(&opts, &mut pileups);
+
 
     let mut new_lengths = Vec::new();
     for name in &seq_names {
@@ -87,6 +86,9 @@ fn starting_message(opts: &Opts) {
                       location). This allows it to repair errors in repeat regions that other \
                       alignment-based polishers cannot fix.");
 
+    const VERSION: &'static str = env!("CARGO_PKG_VERSION");
+    eprintln!("Polypolish version: {}", VERSION);
+    eprintln!();
     eprintln!("Input assembly:");
     eprintln!("  {}", opts.assembly.display());
     eprintln!();
@@ -111,7 +113,7 @@ fn finished_message(new_lengths: Vec<(&String, usize)>, start_time: Instant) {
     log::section_header("Finished!");
     eprintln!("Polished sequence (to stdout):");
     for (new_name, new_length) in new_lengths {
-        eprintln!("  {}_polypolish ({} bp)", new_name, new_length);
+        eprintln!("  {}_polypolish ({} bp)", new_name, new_length.to_formatted_string(&Locale::en));
     }
     eprintln!();
     eprintln!("Time to run: {}", misc::format_duration(start_time.elapsed()));
@@ -133,6 +135,28 @@ fn load_assembly(assembly_filename: &PathBuf) -> (Vec<String>, HashMap<String, p
     }
     eprintln!();
     (seq_names, pileups)
+}
+
+
+fn load_alignments(opts: &Opts, pileups: &mut HashMap<String, pileup::Pileup>) {
+    log::section_header("Loading alignments");
+    let mut alignment_total: usize = 0;
+    let mut used_total: usize = 0;
+    for s in &opts.sam {
+        let (alignment_count, used_count, read_count) = alignment::process_sam(&s, pileups, opts.max_errors);
+        eprintln!("{}: {} alignments from {} reads",
+                  s.as_path().display().to_string(),
+                  alignment_count.to_formatted_string(&Locale::en),
+                  read_count.to_formatted_string(&Locale::en));
+        alignment_total += alignment_count;
+        used_total += used_count;
+    }
+    let discarded_count = alignment_total - used_total;
+    eprintln!();
+    eprintln!("Filtering for high-quality end-to-end alignments:");
+    eprintln!("  {} alignments kept", used_total.to_formatted_string(&Locale::en));
+    eprintln!("  {} alignments discarded", discarded_count.to_formatted_string(&Locale::en));
+    eprintln!();
 }
 
 
