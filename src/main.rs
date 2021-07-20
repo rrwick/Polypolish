@@ -16,6 +16,7 @@ mod alignment;
 
 use std::path::PathBuf;
 use std::collections::HashMap;
+use std::time::Instant;
 use clap::{AppSettings, Clap};
 use num_format::{Locale, ToFormattedString};
 
@@ -35,7 +36,7 @@ struct Opts {
 
     /// A base must occur at least this many times in the pileup to be considered valid
     #[clap(short = 'd', long = "min_depth", default_value = "5")]
-    min_depth: i32,
+    min_depth: usize,
 
     /// A base must make up at least this fraction of the pileup to be considered valid
     #[clap(short = 'f', long = "min_fraction", default_value = "0.5")]
@@ -53,6 +54,7 @@ struct Opts {
 
 fn main() {
     let opts: Opts = Opts::parse();
+    let start_time = Instant::now();
     check_inputs_exist(&opts);
     starting_message(&opts);
     let (seq_names, mut pileups) = load_assembly(&opts.assembly);
@@ -60,13 +62,20 @@ fn main() {
         alignment::process_sam(&s, &mut pileups, opts.max_errors);
     }
 
-    // TEMP
+    let mut new_lengths = Vec::new();
     for name in &seq_names {
         let pileup = pileups.get(name).unwrap();
+        let mut polished_seq: String = String::with_capacity(pileup.bases.len());
         for b in &pileup.bases {
-            eprintln!("{} {:?}", name, b);
+            let out_seq = b.get_output_seq(opts.min_depth, opts.min_fraction);
+            polished_seq.push_str(&out_seq);
         }
+        polished_seq = polished_seq.replace("-", "");
+        println!(">{}_polypolish", name);
+        println!("{}", polished_seq);
+        new_lengths.push((name, polished_seq.len()));
     }
+    finished_message(new_lengths, start_time);
 }
 
 
@@ -98,6 +107,18 @@ fn starting_message(opts: &Opts) {
 }
 
 
+fn finished_message(new_lengths: Vec<(&String, usize)>, start_time: Instant) {
+    log::section_header("Finished!");
+    eprintln!("Polished sequence (to stdout):");
+    for (new_name, new_length) in new_lengths {
+        eprintln!("  {}_polypolish ({} bp)", new_name, new_length);
+    }
+    eprintln!();
+    eprintln!("Time to run: {}", misc::format_duration(start_time.elapsed()));
+    eprintln!();
+}
+
+
 fn load_assembly(assembly_filename: &PathBuf) -> (Vec<String>, HashMap<String, pileup::Pileup>) {
     log::section_header("Loading assembly");
 
@@ -110,6 +131,7 @@ fn load_assembly(assembly_filename: &PathBuf) -> (Vec<String>, HashMap<String, p
         seq_names.push(name.clone());
         pileups.insert(name.clone(), pileup::Pileup::new(sequence));
     }
+    eprintln!();
     (seq_names, pileups)
 }
 

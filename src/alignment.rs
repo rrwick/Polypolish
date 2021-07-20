@@ -215,7 +215,6 @@ fn process_one_read(alignments: Vec<Alignment>, pileups: &mut HashMap<String, Pi
         let pileup = pileups.get_mut(&a.ref_name).unwrap();
         pileup.add_alignment(a, depth_contribution);
     }
-
     good_alignments.len()
 }
 
