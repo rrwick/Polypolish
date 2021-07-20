@@ -27,6 +27,7 @@ pub struct Alignment {
     ref_start: i64,
     cigar: String,
     read_seq: String,
+    mismatches: i32,
 }
 
 
@@ -34,7 +35,7 @@ impl Alignment {
     fn new(sam_line: &str) -> Result<Alignment, &str> {
         let parts = sam_line.split('\t').collect::<Vec<&str>>();
         if parts.len() < 11 {
-            return Err("bad SAM format");
+            return Err("too few columns");
         }
 
         let read_name = parts[0];
@@ -44,6 +45,17 @@ impl Alignment {
         let cigar = parts[5];
         let read_seq = parts[9];
 
+        let mut mismatches = -1;
+        for p in &parts[11..] {
+            if p.starts_with("NM:i:") {
+                let nm = p[5..].to_string();
+                mismatches = nm.parse::<i32>().unwrap();
+            }
+        }
+        if mismatches == -1 {
+            return Err("missing NM tag");
+        }
+
         Ok(Alignment {
             read_name: read_name.to_string(),
             ref_name: ref_name.to_string(),
@@ -51,6 +63,7 @@ impl Alignment {
             ref_start: ref_start,
             cigar: cigar.to_string(),
             read_seq: read_seq.to_string(),
+            mismatches: mismatches,
         })
     }
 }
@@ -76,9 +89,11 @@ pub fn add_to_pileup(filename: &PathBuf,
     let mut current_read_alignments = Vec::new();
 
     let mut line_count: usize = 0;
+    let mut alignment_count: usize = 0;
     let mut used_count: usize = 0;
 
     for line in reader.lines() {
+        line_count += 1;
         let sam_line = line?;
         if sam_line.len() == 0 {continue;}
         if sam_line.starts_with('@') {continue;}
@@ -86,11 +101,12 @@ pub fn add_to_pileup(filename: &PathBuf,
         let alignment_result = Alignment::new(&sam_line);
         match alignment_result {
             Ok(_) => ( ),
-            Err(_) => quit_with_error(&format!("{:?} is not correctly formatted", filename)),
+            Err(e) => quit_with_error(&format!("{} in {:?} (line {})",
+                                               e, filename, line_count)),
         }
         let alignment = alignment_result.unwrap();
 
-        line_count += 1;
+        alignment_count += 1;
         let read_name = alignment.read_name.clone();
 
         if current_read_name.is_empty() || current_read_name == alignment.read_name {
@@ -104,10 +120,10 @@ pub fn add_to_pileup(filename: &PathBuf,
     }
     used_count += process_one_read(current_read_alignments, pileups);
 
-    if line_count == 0 {
+    if alignment_count == 0 {
         quit_with_error(&format!("no alignments in {:?}", filename))
     }
-    Ok((line_count, used_count))
+    Ok((alignment_count, used_count))
 }
 
 
