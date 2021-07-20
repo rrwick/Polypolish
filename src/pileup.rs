@@ -10,6 +10,7 @@
 // License along with Polypolish. If not, see <http://www.gnu.org/licenses/>.
 
 use std::collections::HashMap;
+use crate::alignment::Alignment;
 
 
 #[derive(Debug)]
@@ -27,7 +28,7 @@ impl PileupBase {
             counts: HashMap::new(),
         }
     }
-    fn add_seq(&mut self, seq: &str, depth_contribution: f64) {
+    pub fn add_seq(&mut self, seq: &str, depth_contribution: f64) {
         *self.counts.entry(seq.to_string()).or_insert(0) += 1;
         self.depth += depth_contribution;
     }
@@ -53,5 +54,12 @@ impl Pileup {
         }
     }
 
-    // TODO: method to add an alignment
+    pub fn add_alignment(&mut self, alignment: &Alignment, depth_contribution: f64) {
+        let read_bases_per_pos = alignment.get_read_bases_for_each_target_base();
+        let mut i = alignment.ref_start;
+        for b in read_bases_per_pos {
+            self.bases[i].add_seq(&b, depth_contribution);
+            i += 1;
+        }
+    }
 }

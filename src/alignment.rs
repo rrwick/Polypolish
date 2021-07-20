@@ -33,7 +33,7 @@ pub struct Alignment {
     read_name: String,
     ref_name: String,
     sam_flags: i32,
-    ref_start: i64,
+    pub ref_start: usize,
     cigar: String,
     expanded_cigar: String,
     read_seq: String,
@@ -50,7 +50,7 @@ impl Alignment {
         let read_name = parts[0];
         let sam_flags = parts[1].parse::<i32>().unwrap();
         let ref_name = parts[2];
-        let ref_start = parts[3].parse::<i64>().unwrap() - 1;
+        let ref_start = parts[3].parse::<usize>().unwrap() - 1;
         let cigar = parts[5];
         let read_seq = parts[9];
 
@@ -93,10 +93,6 @@ impl Alignment {
         (self.sam_flags & 16) == 0
     }
 
-    fn is_secondary(&self) -> bool {
-        (self.sam_flags & 256) == 256
-    }
-
     fn starts_and_ends_with_match(&self) -> bool {
         self.expanded_cigar.chars().next().unwrap() == 'M' &&
             self.expanded_cigar.chars().last().unwrap() == 'M'
@@ -108,6 +104,28 @@ impl Alignment {
         } else {
             self.read_seq = reverse_complement(read_seq);
         }
+    }
+
+    pub fn get_read_bases_for_each_target_base(&self) -> Vec<String> {
+        let mut i = 0;
+        let mut read_bases = Vec::new();
+        for c in self.expanded_cigar.chars() {
+            if c == 'M' {
+                read_bases.push((self.read_seq.as_bytes()[i] as char).to_string());
+                i += 1;
+            } else if c == 'I' {
+                read_bases.last_mut().unwrap().push(self.read_seq.as_bytes()[i] as char);
+                i += 1;
+            } else if c == 'D' {
+                read_bases.push("-".to_string());
+            } else {
+                panic!();
+            }
+        }
+        assert!(i == self.read_seq.len());
+
+        trim_bases_for_homopolymers(&mut read_bases);
+        read_bases
     }
 }
 
@@ -148,6 +166,7 @@ pub fn add_to_pileup(filename: &PathBuf, pileups: &mut HashMap<String, Pileup>,
                                                e, filename, line_count)),
         }
         let alignment = alignment_result.unwrap();
+        if !alignment.is_aligned() {continue;}
 
         alignment_count += 1;
         let read_name = alignment.read_name.clone();
@@ -183,29 +202,19 @@ fn process_one_read(alignments: Vec<Alignment>, pileups: &mut HashMap<String, Pi
     let depth_contribution = 1.0 / good_alignments.len() as f64;
 
     for a in &mut good_alignments {
-        let needs_length = (a.read_seq == "*");
+        let needs_length = a.read_seq == "*";
         if needs_length {
             a.add_read_seq(&read_seq, strand);
         }
     }
 
-    for a in &good_alignments {  // TEMP
-        eprintln!("{:?}", a);   // TEMP
-    }                           // TEMP
-    eprintln!("{}", depth_contribution);  // TEMP
-    eprintln!();  // TEMP
-
-    // TODO: get_read_bases_for_each_target_base
-    // TODO: get_read_bases_for_each_target_base
-    // TODO: get_read_bases_for_each_target_base
-    // TODO: get_read_bases_for_each_target_base
-    // TODO: get_read_bases_for_each_target_base
-
-    // TODO: add bases to pileup
-    // TODO: add bases to pileup
-    // TODO: add bases to pileup
-    // TODO: add bases to pileup
-    // TODO: add bases to pileup
+    for a in &good_alignments {
+        if !pileups.contains_key(&a.ref_name) {
+            quit_with_error(&format!("query name {} in SAM but not in assembly", a.ref_name))
+        }
+        let pileup = pileups.get_mut(&a.ref_name).unwrap();
+        pileup.add_alignment(a, depth_contribution);
+    }
 
     good_alignments.len()
 }
@@ -238,4 +247,34 @@ fn get_expanded_cigar(cigar: &str) -> String {
         }
     }
     expanded_cigar
+}
+
+
+/// Alignments that end in a homopolymer can cause trouble, as they can align cleanly
+/// (without an indel) even when an indel is needed.
+///
+/// For example, an alignment should look like this:
+///   read: ... T G A G T A C AG G G G G A A G T
+///   ref:  ... T G A G T A C A  G G G G A A G T C C A G T ...
+///
+/// But if the read ends in the homopolymer, it could look like this:
+///   read: ... T G A G T A C A G G
+///   ref:  ... T G A G T A C A G G G G A A G T C C A G T ...
+///
+/// Which results in a clean alignment on the 'A' that should be 'AG'. To avoid this, we
+/// trim off the last couple unique bases of the alignment, so the example becomes:
+///   read: ... T G A G T A C
+///   ref:  ... T G A G T A C A G G G G A A G T C C A G T ...
+fn trim_bases_for_homopolymers(read_bases: &mut Vec<String>) {
+    let last_base = read_bases.last().unwrap().clone();
+    while read_bases.len() > 0 {
+        let current_last = read_bases.last().unwrap().clone();
+        if current_last != last_base {
+            break;
+        }
+        read_bases.pop();
+    }
+    if read_bases.len() > 0 {
+        read_bases.pop();
+    }
 }
