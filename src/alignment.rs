@@ -81,6 +81,14 @@ impl Alignment {
         (self.sam_flags & 4) == 0
     }
 
+    fn get_strand(&self) -> i32 {
+        if self.is_on_forward_strand() {
+            1
+        } else {
+            -1
+        }
+    }
+
     fn is_on_forward_strand(&self) -> bool {
         (self.sam_flags & 16) == 0
     }
@@ -92,6 +100,17 @@ impl Alignment {
     fn starts_and_ends_with_match(&self) -> bool {
         self.expanded_cigar.chars().next().unwrap() == 'M' &&
             self.expanded_cigar.chars().last().unwrap() == 'M'
+    }
+
+    fn add_read_seq(&mut self, read_seq: &str, strand: i32) {
+        if self.get_strand() == strand {
+            self.read_seq = read_seq.to_string();
+        } else {
+            // TODO: add the reverse complement sequence
+            // TODO: add the reverse complement sequence
+            // TODO: add the reverse complement sequence
+            // TODO: add the reverse complement sequence
+        }
     }
 }
 
@@ -156,19 +175,59 @@ pub fn add_to_pileup(filename: &PathBuf, pileups: &mut HashMap<String, Pileup>,
 
 fn process_one_read(alignments: Vec<Alignment>, pileups: &mut HashMap<String, Pileup>,
                     max_errors: i32) -> usize {
-    // TODO
-    // TODO
-    // TODO
-    // TODO
-    // TODO
-    // TODO
-    // TODO
-    for a in alignments {
-        eprintln!("{:?}", a);
-    }
-    eprintln!();
+    let (read_seq, strand) = get_read_seq_from_alignments(&alignments);
 
-    1  //TEMP
+    let mut good_alignments = Vec::new();
+    for a in alignments {
+        if a.starts_and_ends_with_match() && a.mismatches <= max_errors {
+            good_alignments.push(a);
+        }
+    }
+    let depth_contribution = 1.0 / good_alignments.len() as f64;
+
+    for a in &mut good_alignments {
+        let needs_length = (a.read_seq == "*");
+        if needs_length {
+            a.add_read_seq(&read_seq, strand);
+        }
+    }
+
+    for a in &good_alignments {  // TEMP
+        eprintln!("{:?}", a);   // TEMP
+    }                           // TEMP
+    eprintln!("{}", depth_contribution);  // TEMP
+    eprintln!();  // TEMP
+
+    // TODO: get_read_bases_for_each_target_base
+    // TODO: get_read_bases_for_each_target_base
+    // TODO: get_read_bases_for_each_target_base
+    // TODO: get_read_bases_for_each_target_base
+    // TODO: get_read_bases_for_each_target_base
+
+    // TODO: add bases to pileup
+    // TODO: add bases to pileup
+    // TODO: add bases to pileup
+    // TODO: add bases to pileup
+    // TODO: add bases to pileup
+
+    good_alignments.len()
+}
+
+
+/// This function takes a vector of all the alignments for one read. At least one of these
+/// alignments should have the read seq included (i.e. not just "*"). This function will return
+/// that sequence and its strand.
+fn get_read_seq_from_alignments(alignments: &Vec<Alignment>) -> (String, i32) {
+    for a in alignments {
+        if a.read_seq == "*" {
+            continue;
+        } else {
+            return (a.read_seq.clone(), a.get_strand());
+        }
+    }
+    let read_name = &alignments.first().unwrap().read_name;
+    quit_with_error(&format!("no alignments for read {} contain sequence", read_name));
+    ("".to_string(), 0)  // never reached
 }
 
 
