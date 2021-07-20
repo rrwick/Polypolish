@@ -11,12 +11,21 @@
 
 use crate::pileup::Pileup;
 use crate::misc::quit_with_error;
+
 use std::path::PathBuf;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io;
 use std::io::{prelude::*, BufReader};
 use std::result::Result;
+
+use regex::Regex;
+use lazy_static::lazy_static;
+
+
+lazy_static! {
+    static ref RE: Regex = Regex::new(r"\d+[MIDNSHP=X]").unwrap();
+}
 
 
 #[derive(Debug)]
@@ -26,10 +35,10 @@ pub struct Alignment {
     sam_flags: i32,
     ref_start: i64,
     cigar: String,
+    expanded_cigar: String,
     read_seq: String,
     mismatches: i32,
 }
-
 
 impl Alignment {
     fn new(sam_line: &str) -> Result<Alignment, &str> {
@@ -62,15 +71,33 @@ impl Alignment {
             sam_flags: sam_flags,
             ref_start: ref_start,
             cigar: cigar.to_string(),
+            expanded_cigar: get_expanded_cigar(&cigar),
             read_seq: read_seq.to_string(),
             mismatches: mismatches,
         })
     }
+
+    fn is_aligned(&self) -> bool {
+        (self.sam_flags & 4) == 0
+    }
+
+    fn is_on_forward_strand(&self) -> bool {
+        (self.sam_flags & 16) == 0
+    }
+
+    fn is_secondary(&self) -> bool {
+        (self.sam_flags & 256) == 256
+    }
+
+    fn starts_and_ends_with_match(&self) -> bool {
+        self.expanded_cigar.chars().next().unwrap() == 'M' &&
+            self.expanded_cigar.chars().last().unwrap() == 'M'
+    }
 }
 
 
-pub fn process_sam(filename: &PathBuf, pileups: &mut HashMap<String, Pileup>) {
-    let result = add_to_pileup(filename, pileups);
+pub fn process_sam(filename: &PathBuf, pileups: &mut HashMap<String, Pileup>, max_errors: i32) {
+    let result = add_to_pileup(filename, pileups, max_errors);
     match result {
         Ok((_, _)) => ( ),
         Err(_) => quit_with_error(&format!("unable to load alignments from {:?}", filename)),
@@ -80,8 +107,8 @@ pub fn process_sam(filename: &PathBuf, pileups: &mut HashMap<String, Pileup>) {
 }
 
 
-pub fn add_to_pileup(filename: &PathBuf,
-                     pileups: &mut HashMap<String, Pileup>) -> io::Result<(usize, usize)> {
+pub fn add_to_pileup(filename: &PathBuf, pileups: &mut HashMap<String, Pileup>,
+                     max_errors: i32) -> io::Result<(usize, usize)> {
     let file = File::open(&filename)?;
     let reader = BufReader::new(file);
 
@@ -112,13 +139,13 @@ pub fn add_to_pileup(filename: &PathBuf,
         if current_read_name.is_empty() || current_read_name == alignment.read_name {
             current_read_alignments.push(alignment);
         } else {
-            used_count += process_one_read(current_read_alignments, pileups);
+            used_count += process_one_read(current_read_alignments, pileups, max_errors);
             current_read_alignments = Vec::new();
             current_read_alignments.push(alignment);
         }
         current_read_name = read_name;
     }
-    used_count += process_one_read(current_read_alignments, pileups);
+    used_count += process_one_read(current_read_alignments, pileups, max_errors);
 
     if alignment_count == 0 {
         quit_with_error(&format!("no alignments in {:?}", filename))
@@ -127,7 +154,8 @@ pub fn add_to_pileup(filename: &PathBuf,
 }
 
 
-fn process_one_read(alignments: Vec<Alignment>, pileups: &mut HashMap<String, Pileup>) -> usize {
+fn process_one_read(alignments: Vec<Alignment>, pileups: &mut HashMap<String, Pileup>,
+                    max_errors: i32) -> usize {
     // TODO
     // TODO
     // TODO
@@ -143,6 +171,18 @@ fn process_one_read(alignments: Vec<Alignment>, pileups: &mut HashMap<String, Pi
     1  //TEMP
 }
 
+
+fn get_expanded_cigar(cigar: &str) -> String {
+    let mut expanded_cigar = String::new();
+    for m in RE.find_iter(cigar) {
+        let num: i32 = cigar[m.start()..m.end()-1].parse().unwrap();
+        let letter = &cigar[m.end()-1..m.end()];
+        for _ in 0..num {
+            expanded_cigar.push_str(letter);
+        }
+    }
+    expanded_cigar
+}
 
 
 // TODO: define reverse complement function

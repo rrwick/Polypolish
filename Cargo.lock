@@ -250,7 +250,9 @@ dependencies = [
  "clap",
  "colored",
  "flate2",
+ "lazy_static",
  "num-format",
+ "regex",
  "term_size",
  "textwrap 0.14.2",
 ]
