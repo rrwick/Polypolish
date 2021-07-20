@@ -18,7 +18,7 @@ use crate::alignment::Alignment;
 #[derive(Debug)]
 pub struct PileupBase {
     original: char,
-    depth: f64,
+    pub depth: f64,
     counts: HashMap<String, usize>,
 }
 

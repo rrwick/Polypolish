@@ -59,21 +59,7 @@ fn main() {
     starting_message(&opts);
     let (seq_names, mut pileups) = load_assembly(&opts.assembly);
     load_alignments(&opts, &mut pileups);
-
-
-    let mut new_lengths = Vec::new();
-    for name in &seq_names {
-        let pileup = pileups.get(name).unwrap();
-        let mut polished_seq: String = String::with_capacity(pileup.bases.len());
-        for b in &pileup.bases {
-            let out_seq = b.get_output_seq(opts.min_depth, opts.min_fraction);
-            polished_seq.push_str(&out_seq);
-        }
-        polished_seq = polished_seq.replace("-", "");
-        println!(">{}_polypolish", name);
-        println!("{}", polished_seq);
-        new_lengths.push((name, polished_seq.len()));
-    }
+    let new_lengths = polish_sequences(&opts, &seq_names, &mut pileups);
     finished_message(new_lengths, start_time);
 }
 
@@ -109,7 +95,7 @@ fn starting_message(opts: &Opts) {
 }
 
 
-fn finished_message(new_lengths: Vec<(&String, usize)>, start_time: Instant) {
+fn finished_message(new_lengths: Vec<(String, usize)>, start_time: Instant) {
     log::section_header("Finished!");
     eprintln!("Polished sequence (to stdout):");
     for (new_name, new_length) in new_lengths {
@@ -157,6 +143,60 @@ fn load_alignments(opts: &Opts, pileups: &mut HashMap<String, pileup::Pileup>) {
     eprintln!("  {} alignments kept", used_total.to_formatted_string(&Locale::en));
     eprintln!("  {} alignments discarded", discarded_count.to_formatted_string(&Locale::en));
     eprintln!();
+}
+
+
+fn polish_sequences(opts: &Opts, seq_names: &Vec<String>,
+                    pileups: &HashMap<String, pileup::Pileup>) -> Vec<(String, usize)>{
+    log::section_header("Polishing assembly sequences");
+    log::explanation("For each position in the assembly, Polypolish determines the read \
+                     depth at that position and collects all aligned bases. It then polishes the \
+                     assembly by looking for positions where the pileup unambiguously supports a \
+                     different sequence than the assembly.");
+    let mut new_lengths = Vec::new();
+    for name in seq_names {
+        let pileup = pileups.get(name).unwrap();
+        let new_length = polish_one_sequence(opts, name, pileup);
+        new_lengths.push((name.clone(), new_length));
+    }
+    new_lengths
+}
+
+
+fn polish_one_sequence(opts: &Opts, name: &str, pileup: &pileup::Pileup) -> usize {
+    let seq_len = pileup.bases.len();
+    eprintln!("Polishing {} ({} bp):", name, seq_len.to_formatted_string(&Locale::en));
+
+    let mut polished_seq: String = String::with_capacity(seq_len);
+    let mut total_depth = 0.0;
+    let mut zero_depth_count: usize = 0;
+
+    for b in &pileup.bases {
+        let out_seq = b.get_output_seq(opts.min_depth, opts.min_fraction);
+        polished_seq.push_str(&out_seq);
+        total_depth += b.depth;
+        if b.depth == 0.0 {
+            zero_depth_count += 1;
+        }
+    }
+    polished_seq = polished_seq.replace("-", "");
+
+    let mean_depth = total_depth / seq_len as f64;
+    eprintln!("  mean read depth: {:.1}x", mean_depth);
+
+    let have = if zero_depth_count == 1 {"has"} else {"have"};
+    let covered = seq_len - zero_depth_count;
+    let coverage = 100.0 * (covered as f64) / seq_len as f64;
+    eprintln!("  {} bp {} a depth of zero ({:.4}% coverage)",
+              zero_depth_count.to_formatted_string(&Locale::en), have, coverage);
+
+
+
+    eprintln!();
+
+    println!(">{}_polypolish", name);
+    println!("{}", polished_seq);
+    polished_seq.len()
 }
 
 
