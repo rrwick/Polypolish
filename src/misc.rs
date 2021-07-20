@@ -165,3 +165,27 @@ fn load_fasta_gzipped(filename: &PathBuf) -> io::Result<Vec<(String, String)>> {
     }
     Ok(fasta_seqs)
 }
+
+
+fn complement_base(base: char) -> char {
+    match base {
+        'A' => 'T', 'T' => 'A', 'G' => 'C', 'C' => 'G',
+        'a' => 't', 't' => 'a', 'g' => 'c', 'c' => 'g',
+        'N' => 'N', 'n' => 'n',
+        'R' => 'Y', 'Y' => 'R', 'S' => 'S', 'W' => 'W', 'K' => 'M', 'M' => 'K',
+        'B' => 'V', 'V' => 'B', 'D' => 'H', 'H' => 'D',
+        'r' => 'y', 'y' => 'r', 's' => 's', 'w' => 'w', 'k' => 'm', 'm' => 'k',
+        'b' => 'v', 'v' => 'b', 'd' => 'h', 'h' => 'd',
+        '.' => '.', '-' => '-', '?' => '?',
+        _ => 'N'
+    }
+}
+
+
+pub fn reverse_complement(seq: &str) -> String {
+    let mut rev_seq: String = String::with_capacity(seq.len());
+    for c in seq.chars().rev() {
+        rev_seq.push(complement_base(c))
+    }
+    rev_seq
+}

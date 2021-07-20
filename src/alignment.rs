@@ -10,7 +10,7 @@
 // License along with Polypolish. If not, see <http://www.gnu.org/licenses/>.
 
 use crate::pileup::Pileup;
-use crate::misc::quit_with_error;
+use crate::misc::{quit_with_error, reverse_complement};
 
 use std::path::PathBuf;
 use std::collections::HashMap;
@@ -72,7 +72,7 @@ impl Alignment {
             ref_start: ref_start,
             cigar: cigar.to_string(),
             expanded_cigar: get_expanded_cigar(&cigar),
-            read_seq: read_seq.to_string(),
+            read_seq: read_seq.to_string().to_uppercase(),
             mismatches: mismatches,
         })
     }
@@ -106,10 +106,7 @@ impl Alignment {
         if self.get_strand() == strand {
             self.read_seq = read_seq.to_string();
         } else {
-            // TODO: add the reverse complement sequence
-            // TODO: add the reverse complement sequence
-            // TODO: add the reverse complement sequence
-            // TODO: add the reverse complement sequence
+            self.read_seq = reverse_complement(read_seq);
         }
     }
 }
@@ -242,6 +239,3 @@ fn get_expanded_cigar(cigar: &str) -> String {
     }
     expanded_cigar
 }
-
-
-// TODO: define reverse complement function
