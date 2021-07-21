@@ -199,3 +199,24 @@ pub fn format_duration(duration: std::time::Duration) -> String {
     let hours = (duration.as_secs() / 60) / 60;
     format!("{}:{:02}:{:09.6}", hours, minutes, seconds)
 }
+
+
+/// This function implements banker's rounding (i.e. round-half-to-even) for positive numbers. I
+/// wrote it so I could replicate Python's rounding behaviour, because Rust's round function has
+/// round-half-up behaviour. I had tried using math::round::half_to_even, but that didn't seem to
+/// work correctly (rounded 42.55 to 42).
+pub fn bankers_rounding(float: f64) -> usize {
+    let fractional_part = float - float.floor();
+    let rounded_down = float as usize;
+    if fractional_part < 0.5 {
+        return rounded_down;
+    } else if fractional_part > 0.5 {
+        return rounded_down + 1;
+    } else {  // fractional_part == 0.5
+        if rounded_down % 2 == 0 {  // is even
+            return rounded_down;
+        } else {
+            return rounded_down + 1;
+        }
+    }
+}

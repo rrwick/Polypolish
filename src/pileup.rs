@@ -11,8 +11,8 @@
 
 use std::collections::HashMap;
 use std::cmp;
-use math::round::half_to_even;
 use crate::alignment::Alignment;
+use crate::misc::bankers_rounding;
 
 
 pub enum BaseStatus {
@@ -48,9 +48,8 @@ impl PileupBase {
                             build_debug_line: bool) -> (String, BaseStatus, String) {
         let original = self.original.to_string();
 
-        // Use round-to-even logic so the behaviour matches previous Python implementation.
-        let threshold = cmp::max(min_depth,
-                                 half_to_even(self.depth * min_fraction, 0) as usize);
+        // Use banker's rounding so the behaviour matches previous Python implementation.
+        let threshold = cmp::max(min_depth, bankers_rounding(self.depth * min_fraction));
         let mut valid_seqs = Vec::new();
         for (seq, count) in &self.counts {
             if count >= &threshold {
