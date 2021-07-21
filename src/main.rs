@@ -17,6 +17,8 @@ mod alignment;
 use std::path::PathBuf;
 use std::collections::HashMap;
 use std::time::Instant;
+use std::fs::File;
+use std::io::prelude::*;
 use clap::{AppSettings, Clap};
 use num_format::{Locale, ToFormattedString};
 
@@ -60,7 +62,7 @@ fn main() {
     let (seq_names, mut pileups) = load_assembly(&opts.assembly);
     load_alignments(&opts, &mut pileups);
     let new_lengths = polish_sequences(&opts, &seq_names, &mut pileups);
-    finished_message(new_lengths, start_time);
+    finished_message(&opts, new_lengths, start_time);
 }
 
 
@@ -88,20 +90,24 @@ fn starting_message(opts: &Opts) {
     eprintln!("  --min_depth {}", opts.min_depth);
     eprintln!("  --min_fraction {}", opts.min_fraction);
     match &opts.debug {
-        Some(v) => {eprintln!("  --debug {}", v.display());}
-        None => {eprintln!("  not logging debugging information");},
+        Some(filename) => eprintln!("  --debug {}", filename.display()),
+        None => eprintln!("  not logging debugging information"),
     }
     eprintln!();
 }
 
 
-fn finished_message(new_lengths: Vec<(String, usize)>, start_time: Instant) {
+fn finished_message(opts: &Opts, new_lengths: Vec<(String, usize)>, start_time: Instant) {
     log::section_header("Finished!");
     eprintln!("Polished sequence (to stdout):");
     for (new_name, new_length) in new_lengths {
         eprintln!("  {}_polypolish ({} bp)", new_name, new_length.to_formatted_string(&Locale::en));
     }
     eprintln!();
+    match &opts.debug {
+        Some(filename) => eprintln!("Per-base debugging info written to {}", filename.display()),
+        None => {},
+    }
     eprintln!("Time to run: {}", misc::format_duration(start_time.elapsed()));
     eprintln!();
 }
@@ -130,8 +136,7 @@ fn load_alignments(opts: &Opts, pileups: &mut HashMap<String, pileup::Pileup>) {
     let mut used_total: usize = 0;
     for s in &opts.sam {
         let (alignment_count, used_count, read_count) = alignment::process_sam(&s, pileups, opts.max_errors);
-        eprintln!("{}: {} alignments from {} reads",
-                  s.as_path().display().to_string(),
+        eprintln!("{}: {} alignments from {} reads", s.display(),
                   alignment_count.to_formatted_string(&Locale::en),
                   read_count.to_formatted_string(&Locale::en));
         alignment_total += alignment_count;
@@ -153,17 +158,19 @@ fn polish_sequences(opts: &Opts, seq_names: &Vec<String>,
                      depth at that position and collects all aligned bases. It then polishes the \
                      assembly by looking for positions where the pileup unambiguously supports a \
                      different sequence than the assembly.");
+    let mut debug_file = create_debug_file(opts);
     let mut new_lengths = Vec::new();
     for name in seq_names {
         let pileup = pileups.get(name).unwrap();
-        let new_length = polish_one_sequence(opts, name, pileup);
+        let new_length = polish_one_sequence(opts, name, pileup, &mut debug_file);
         new_lengths.push((name.clone(), new_length));
     }
     new_lengths
 }
 
 
-fn polish_one_sequence(opts: &Opts, name: &str, pileup: &pileup::Pileup) -> usize {
+fn polish_one_sequence(opts: &Opts, name: &str, pileup: &pileup::Pileup,
+                       debug_file: &mut Option<File>) -> usize {
     let seq_len = pileup.bases.len();
     eprintln!("Polishing {} ({} bp):", name, seq_len.to_formatted_string(&Locale::en));
 
@@ -171,9 +178,12 @@ fn polish_one_sequence(opts: &Opts, name: &str, pileup: &pileup::Pileup) -> usiz
     let mut total_depth = 0.0;
     let mut zero_depth_count: usize = 0;
     let mut changed_count: usize = 0;
+    let mut pos: usize = 0;
+    let build_debug_str = match debug_file {Some(_) => true, None => false};
 
     for b in &pileup.bases {
-        let (out_seq, status) = b.get_output_seq(opts.min_depth, opts.min_fraction);
+        let (seq, status, debug_line) = b.get_polished_seq(opts.min_depth, opts.min_fraction,
+                                                           build_debug_str);
         match status {
             pileup::BaseStatus::Changed => {changed_count += 1}
             _ => {}
@@ -182,13 +192,19 @@ fn polish_one_sequence(opts: &Opts, name: &str, pileup: &pileup::Pileup) -> usiz
         if b.depth == 0.0 {
             zero_depth_count += 1;
         }
-        polished_seq.push_str(&out_seq);
+        match debug_file {
+            Some(file) => write_debug_line(file, name, pos, &debug_line, opts),
+            None => {},
+        }
+        polished_seq.push_str(&seq);
+        pos += 1;
     }
     polished_seq = polished_seq.replace("-", "");
-
-    print_polishing_info(seq_len, total_depth, zero_depth_count, changed_count);
     println!(">{}_polypolish", name);
     println!("{}", polished_seq);
+
+    print_polishing_info(seq_len, total_depth, zero_depth_count, changed_count);
+
     polished_seq.len()
 }
 
@@ -211,6 +227,44 @@ fn print_polishing_info(seq_len: usize, total_depth: f64, zero_depth_count: usiz
               changed_count.to_formatted_string(&Locale::en), changed_percent);
     eprintln!("  estimated pre-polishing sequence accuracy: {:.4}%", estimated_accuracy);
     eprintln!();
+}
+
+
+fn create_debug_file(opts: &Opts) -> Option<File> {
+    match &opts.debug {
+        Some(_) => {},
+        None => return None,
+    }
+    let filename = opts.debug.as_ref().unwrap();
+    let create_result = File::create(filename);
+    match create_result {
+        Ok(_) => ( ),
+        Err(_) => misc::quit_with_error(&format!("unable to create {:?}", filename)),
+    }
+    let mut file = create_result.unwrap();
+    write_debug_header(&mut file, filename);
+    Some(file)
+}
+
+
+fn write_debug_header(file: &mut File, filename: &PathBuf) {
+    let header = "name\tpos\tbase\tdepth\tthreshold\tpileup\tstatus\tnew_base\n";
+    let result = file.write_all(header.as_bytes());
+    match result {
+        Ok(_) => (),
+        Err(_) => misc::quit_with_error(&format!("unable to write to file {:?}", filename)),
+    }
+}
+
+
+fn write_debug_line(file: &mut File, name: &str, pos: usize, debug_line: &str, opts: &Opts) {
+    let debug_line: String = format!("{}\t{}\t{}\n", name, pos, debug_line);
+    let result = file.write_all(debug_line.as_bytes());
+    match result {
+        Ok(_) => (),
+        Err(_) => misc::quit_with_error(&format!("unable to write to file {:?}",
+                                                 opts.debug.as_ref().unwrap())),
+    }
 }
 
 

@@ -44,24 +44,10 @@ impl PileupBase {
     // TODO: method to get valid choices
     // TODO: method to get output sequence
 
-    pub fn get_output_seq(&self, min_depth: usize, min_fraction: f64) -> (String, BaseStatus) {
+    pub fn get_polished_seq(&self, min_depth: usize, min_fraction: f64,
+                            build_debug_line: bool) -> (String, BaseStatus, String) {
         let original = self.original.to_string();
-        let valid_seqs = self.get_valid_seqs(min_depth, min_fraction);
-        if valid_seqs.len() == 1 {
-            let new_base = valid_seqs[0].clone();
-            if new_base == original {
-                (original, BaseStatus::OriginalBaseKept)
-            } else {
-                (new_base, BaseStatus::Changed)
-            }
-        } else if valid_seqs.len() == 0 {
-            (original, BaseStatus::NoValidOptions)
-        } else {  // valid_seqs.len() > 0
-            (original, BaseStatus::MultipleValidOptions)
-        }
-    }
 
-    fn get_valid_seqs(&self, min_depth: usize, min_fraction: f64) -> Vec<String> {
         // Use round-to-even logic so the behaviour matches previous Python implementation.
         let threshold = cmp::max(min_depth,
                                  half_to_even(self.depth * min_fraction, 0) as usize);
@@ -71,7 +57,48 @@ impl PileupBase {
                 valid_seqs.push(seq.clone());
             }
         }
-        valid_seqs
+
+        let mut new_base = original.clone();
+        let mut status = BaseStatus::OriginalBaseKept;
+
+        if valid_seqs.len() == 1 {
+            new_base = valid_seqs[0].clone();
+            if new_base != original {
+                status = BaseStatus::Changed;
+            }
+        } else if valid_seqs.len() == 0 {
+            status = BaseStatus::NoValidOptions;
+        } else {  // valid_seqs.len() > 0
+            status = BaseStatus::MultipleValidOptions;
+        }
+
+        let debug_line = self.get_debug_line(build_debug_line, threshold, &status, &new_base);
+        (new_base, status, debug_line)
+    }
+
+    fn get_debug_line(&self, build_debug_line: bool, threshold: usize, status: &BaseStatus,
+                      new_base: &str) -> String {
+        if !build_debug_line {
+            return String::new();
+        }
+
+        let mut counts = Vec::new();
+        for (seq, count) in &self.counts {
+            let count_str = format!("{}x{}", seq, count);
+            counts.push(count_str);
+        }
+        counts.sort();
+
+        let status_str = match status {
+            BaseStatus::OriginalBaseKept => "kept",
+            BaseStatus::Changed => "changed",
+            BaseStatus::NoValidOptions => "none",
+            BaseStatus::MultipleValidOptions => "multiple",
+
+        };
+
+        format!("{}\t{:.1}\t{}\t{}\t{}\t{}", self.original, self.depth, threshold,
+                counts.join(","), status_str, new_base)
     }
 }
 
