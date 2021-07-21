@@ -32,7 +32,7 @@ pub struct PileupBase {
 impl PileupBase {
     fn new(original: char) -> PileupBase {
         PileupBase {
-            original: original.to_ascii_uppercase(),
+            original: original,
             depth: 0.0,
             counts: HashMap::new(),
         }

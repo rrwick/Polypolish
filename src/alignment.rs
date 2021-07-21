@@ -72,7 +72,7 @@ impl Alignment {
             ref_start: ref_start,
             cigar: cigar.to_string(),
             expanded_cigar: get_expanded_cigar(&cigar),
-            read_seq: read_seq.to_string().to_uppercase(),
+            read_seq: read_seq.to_ascii_uppercase(),
             mismatches: mismatches,
         })
     }

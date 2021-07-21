@@ -110,6 +110,7 @@ fn load_fasta_not_gzipped(filename: &PathBuf) -> io::Result<Vec<(String, String)
         if text.len() == 0 {continue;}
         if text.starts_with('>') {
             if name.len() > 0 {
+                sequence.make_ascii_uppercase();
                 fasta_seqs.push((name, sequence));
                 sequence = String::new();
             }
@@ -127,6 +128,7 @@ fn load_fasta_not_gzipped(filename: &PathBuf) -> io::Result<Vec<(String, String)
         }
     }
     if name.len() > 0 {
+        sequence.make_ascii_uppercase();
         fasta_seqs.push((name, sequence));
     }
     Ok(fasta_seqs)
@@ -144,6 +146,7 @@ fn load_fasta_gzipped(filename: &PathBuf) -> io::Result<Vec<(String, String)>> {
         if text.len() == 0 {continue;}
         if text.starts_with('>') {
             if name.len() > 0 {
+                sequence.make_ascii_uppercase();
                 fasta_seqs.push((name, sequence));
                 sequence = String::new();
             }
@@ -161,6 +164,7 @@ fn load_fasta_gzipped(filename: &PathBuf) -> io::Result<Vec<(String, String)>> {
         }
     }
     if name.len() > 0 {
+        sequence.make_ascii_uppercase();
         fasta_seqs.push((name, sequence));
     }
     Ok(fasta_seqs)
