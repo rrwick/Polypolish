@@ -81,7 +81,7 @@ def starting_message(args):
                 'it to repair errors in repeat regions that other alignment-based polishers '
                 'cannot fix.')
 
-    log(f'Polypolish version: v{__version__}')
+    log(f'Polypolish version: {__version__}')
     log()
     log('Input assembly:')
     log(f'  {args.assembly}')
@@ -122,9 +122,8 @@ def load_assembly(assembly_filename):
     count = len(assembly_seqs)
     if count == 0:
         sys.exit(f'Error: no sequences in {assembly_filename}')
-    log(f'{count} sequence{"" if count == 1 else "s"} in {assembly_filename}:')
     for name, seq in assembly_seqs:
-        log(f'  {name} ({len(seq):,} bp)')
+        log(f'{name} ({len(seq):,} bp)')
     log()
     return assembly_seqs
 

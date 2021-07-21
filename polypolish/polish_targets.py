@@ -46,16 +46,14 @@ def polish_target_sequence(seq_name, target_seq, alignments, debug_file, min_dep
     log(f'Polishing {seq_name} ({len(target_seq):,} bp):')
 
     changed_positions = set()
-    log('  Building read pileup:')
     pileup, depths_by_pos = get_pileup(alignments, seq_name, target_seq)
     mean_depth = statistics.mean(depths_by_pos.values())
-    log(f'    mean read depth: {mean_depth:.1f}x')
+    log(f'  mean read depth: {mean_depth:.1f}x')
     uncovered = sum(1 if d == 0.0 else 0 for d in depths_by_pos.values())
     coverage = 100.0 * (len(target_seq) - uncovered) / len(target_seq)
     have = 'has' if uncovered == 1 else 'have'
-    log(f'    {uncovered:,} bp {have} a depth of zero ({coverage:.4f}% coverage)')
+    log(f'  {uncovered:,} bp {have} a depth of zero ({coverage:.4f}% coverage)')
 
-    log('  Repairing assembly sequence:')
     new_bases = []
     for i in range(len(target_seq)):
         read_base_counts = pileup[i]
@@ -89,8 +87,8 @@ def polish_target_sequence(seq_name, target_seq, alignments, debug_file, min_dep
     estimated_accuracy = 100.0 - changed_percent
 
     positions = 'position' if changed_count == 1 else 'positions'
-    log(f'    {changed_count:,} {positions} changed ({changed_percent:.4f}% of total positions)')
-    log(f'    estimated pre-polishing sequence accuracy: {estimated_accuracy:.4f}%')
+    log(f'  {changed_count:,} {positions} changed ({changed_percent:.4f}% of total positions)')
+    log(f'  estimated pre-polishing sequence accuracy: {estimated_accuracy:.4f}%')
     log()
 
     new_name = f'{seq_name}_polypolish'
@@ -115,7 +113,8 @@ def write_debug_header(debug_file):
 
 def write_debug_line(debug_file, seq_name, i, ref_base, depth, target_count, read_base_counts,
                      new_base, status):
-    pileup_str = ','.join([f'{b}x{c}' for b, c in read_base_counts.items()])
+    pileup_pieces = sorted([f'{b}x{c}' for b, c in read_base_counts.items()])
+    pileup_str = ','.join(pileup_pieces)
     debug_str = f'{seq_name}\t{i}\t{ref_base}\t{depth:.1f}\t{target_count}\t{pileup_str}\t' \
                 f'{status}\t{new_base}\n'
     debug_file.write(debug_str)
