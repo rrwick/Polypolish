@@ -15,6 +15,13 @@ use math::round::half_to_even;
 use crate::alignment::Alignment;
 
 
+pub enum BaseStatus {
+    NoValidOptions,       // no sequences pass the threshold (not changed)
+    MultipleValidOptions, // multiple sequences pass the threshold (not changed)
+    OriginalBaseKept,     // one sequence passes the threshold and it matches the original base
+    Changed,              // one sequence passes the threshold and it differs from the original base
+}
+
 #[derive(Debug)]
 pub struct PileupBase {
     original: char,
@@ -37,12 +44,20 @@ impl PileupBase {
     // TODO: method to get valid choices
     // TODO: method to get output sequence
 
-    pub fn get_output_seq(&self, min_depth: usize, min_fraction: f64) -> String {
+    pub fn get_output_seq(&self, min_depth: usize, min_fraction: f64) -> (String, BaseStatus) {
+        let original = self.original.to_string();
         let valid_seqs = self.get_valid_seqs(min_depth, min_fraction);
         if valid_seqs.len() == 1 {
-            valid_seqs[0].clone()
-        } else {
-            self.original.to_string()
+            let new_base = valid_seqs[0].clone();
+            if new_base == original {
+                (original, BaseStatus::OriginalBaseKept)
+            } else {
+                (new_base, BaseStatus::Changed)
+            }
+        } else if valid_seqs.len() == 0 {
+            (original, BaseStatus::NoValidOptions)
+        } else {  // valid_seqs.len() > 0
+            (original, BaseStatus::MultipleValidOptions)
         }
     }
 

@@ -170,33 +170,47 @@ fn polish_one_sequence(opts: &Opts, name: &str, pileup: &pileup::Pileup) -> usiz
     let mut polished_seq: String = String::with_capacity(seq_len);
     let mut total_depth = 0.0;
     let mut zero_depth_count: usize = 0;
+    let mut changed_count: usize = 0;
 
     for b in &pileup.bases {
-        let out_seq = b.get_output_seq(opts.min_depth, opts.min_fraction);
-        polished_seq.push_str(&out_seq);
+        let (out_seq, status) = b.get_output_seq(opts.min_depth, opts.min_fraction);
+        match status {
+            pileup::BaseStatus::Changed => {changed_count += 1}
+            _ => {}
+        }
         total_depth += b.depth;
         if b.depth == 0.0 {
             zero_depth_count += 1;
         }
+        polished_seq.push_str(&out_seq);
     }
     polished_seq = polished_seq.replace("-", "");
 
-    let mean_depth = total_depth / seq_len as f64;
+    print_polishing_info(seq_len, total_depth, zero_depth_count, changed_count);
+    println!(">{}_polypolish", name);
+    println!("{}", polished_seq);
+    polished_seq.len()
+}
+
+
+fn print_polishing_info(seq_len: usize, total_depth: f64, zero_depth_count: usize,
+                        changed_count: usize) {
+    let seq_len_f64 = seq_len as f64;
+    let mean_depth = total_depth / seq_len_f64;
     eprintln!("  mean read depth: {:.1}x", mean_depth);
 
     let have = if zero_depth_count == 1 {"has"} else {"have"};
     let covered = seq_len - zero_depth_count;
-    let coverage = 100.0 * (covered as f64) / seq_len as f64;
+    let coverage = 100.0 * (covered as f64) / seq_len_f64;
     eprintln!("  {} bp {} a depth of zero ({:.4}% coverage)",
               zero_depth_count.to_formatted_string(&Locale::en), have, coverage);
 
-
-
+    let changed_percent = 100.0 * (changed_count as f64) / seq_len_f64;
+    let estimated_accuracy = 100.0 - changed_percent;
+    eprintln!("  {} positions changed ({:.4}% of total positions)",
+              changed_count.to_formatted_string(&Locale::en), changed_percent);
+    eprintln!("  estimated pre-polishing sequence accuracy: {:.4}%", estimated_accuracy);
     eprintln!();
-
-    println!(">{}_polypolish", name);
-    println!("{}", polished_seq);
-    polished_seq.len()
 }
 
 
