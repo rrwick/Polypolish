@@ -37,12 +37,10 @@ impl PileupBase {
             counts: HashMap::new(),
         }
     }
-    pub fn add_seq(&mut self, seq: &str, depth_contribution: f64) {
-        *self.counts.entry(seq.to_string()).or_insert(0) += 1;
+    pub fn add_seq(&mut self, seq: String, depth_contribution: f64) {
+        *self.counts.entry(seq).or_insert(0) += 1;
         self.depth += depth_contribution;
     }
-    // TODO: method to get valid choices
-    // TODO: method to get output sequence
 
     pub fn get_polished_seq(&self, min_depth: usize, min_fraction: f64,
                             build_debug_line: bool) -> (String, BaseStatus, String) {
@@ -123,7 +121,7 @@ impl Pileup {
         let read_bases_per_pos = alignment.get_read_bases_for_each_target_base();
         let mut i = alignment.ref_start;
         for b in read_bases_per_pos {
-            self.bases[i].add_seq(&b, depth_contribution);
+            self.bases[i].add_seq(b, depth_contribution);
             i += 1;
         }
     }
