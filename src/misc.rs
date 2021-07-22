@@ -197,11 +197,11 @@ pub fn reverse_complement(seq: &str) -> String {
 
 
 pub fn format_duration(duration: std::time::Duration) -> String {
-    let microseconds = duration.as_micros();
-    let seconds = microseconds as f64 / 1000000.0;
-    let minutes = (duration.as_secs() / 60) % 60;
-    let hours = (duration.as_secs() / 60) / 60;
-    format!("{}:{:02}:{:09.6}", hours, minutes, seconds)
+    let microseconds = duration.as_micros() % 1000000;
+    let seconds =      duration.as_micros() / 1000000 % 60;
+    let minutes =      duration.as_micros() / 1000000 / 60 % 60;
+    let hours =        duration.as_micros() / 1000000 / 60 / 60;
+    format!("{}:{:02}:{:02}.{:06}", hours, minutes, seconds, microseconds)
 }
 
 
