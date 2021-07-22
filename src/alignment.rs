@@ -71,7 +71,7 @@ impl Alignment {
             sam_flags: sam_flags,
             ref_start: ref_start,
             cigar: cigar.to_string(),
-            expanded_cigar: get_expanded_cigar(&cigar),
+            expanded_cigar: get_expanded_cigar(&cigar, read_seq.len()),
             read_seq: read_seq.to_ascii_uppercase(),
             mismatches: mismatches,
         })
@@ -81,7 +81,7 @@ impl Alignment {
         (self.sam_flags & 4) == 0
     }
 
-    fn get_strand(&self) -> i32 {
+    fn get_strand(&self) -> i8 {
         if self.is_on_forward_strand() {
             1
         } else {
@@ -98,7 +98,7 @@ impl Alignment {
             self.expanded_cigar.chars().last().unwrap() == 'M'
     }
 
-    fn add_read_seq(&mut self, read_seq: &str, strand: i32) {
+    fn add_read_seq(&mut self, read_seq: &str, strand: i8) {
         if self.get_strand() == strand {
             self.read_seq = read_seq.to_string();
         } else {
@@ -234,7 +234,7 @@ fn process_one_read(alignments: Vec<Alignment>, pileups: &mut HashMap<String, Pi
 /// This function takes a vector of all the alignments for one read. At least one of these
 /// alignments should have the read seq included (i.e. not just "*"). This function will return
 /// that sequence and its strand.
-fn get_read_seq_from_alignments(alignments: &Vec<Alignment>) -> (String, i32) {
+fn get_read_seq_from_alignments(alignments: &Vec<Alignment>) -> (String, i8) {
     for a in alignments {
         if a.read_seq == "*" {
             continue;
@@ -248,8 +248,8 @@ fn get_read_seq_from_alignments(alignments: &Vec<Alignment>) -> (String, i32) {
 }
 
 
-fn get_expanded_cigar(cigar: &str) -> String {
-    let mut expanded_cigar = String::new();
+fn get_expanded_cigar(cigar: &str, read_seq_len: usize) -> String {
+    let mut expanded_cigar = String::with_capacity(read_seq_len);
     for m in RE.find_iter(cigar) {
         let num: u32 = cigar[m.start()..m.end()-1].parse().unwrap();
         let letter = &cigar[m.end()-1..m.end()];
