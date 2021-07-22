@@ -108,7 +108,7 @@ impl Alignment {
 
     pub fn get_read_bases_for_each_target_base(&self) -> Vec<String> {
         let mut i = 0;
-        let mut read_bases = Vec::new();
+        let mut read_bases = Vec::with_capacity(self.expanded_cigar.len());
         for c in self.expanded_cigar.chars() {
             if c == 'M' {
                 read_bases.push((self.read_seq.as_bytes()[i] as char).to_string());
@@ -119,11 +119,14 @@ impl Alignment {
             } else if c == 'D' {
                 read_bases.push("-".to_string());
             } else {
-                panic!();
+                quit_with_error(&format!("unexpected character in CIGAR string for read {}: {:?}",
+                                         self.read_name, self.cigar));
             }
         }
-        assert!(i == self.read_seq.len());
-
+        if i != self.read_seq.len() {
+            quit_with_error(&format!("CIGAR string for read {} does not match read sequence",
+                                     self.read_name));
+        }
         trim_bases_for_homopolymers(&mut read_bases);
         read_bases
     }
