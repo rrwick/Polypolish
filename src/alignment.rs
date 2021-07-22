@@ -36,7 +36,7 @@ pub struct Alignment {
     pub ref_start: usize,
     cigar: String,
     expanded_cigar: String,
-    read_seq: String,
+    pub read_seq: String,
     mismatches: u32,
 }
 
@@ -106,18 +106,24 @@ impl Alignment {
         }
     }
 
-    pub fn get_read_bases_for_each_target_base(&self) -> Vec<String> {
+    /// This function returns a vector giving the read base(s) for each position of the target
+    /// sequence. Instead of returning these as strings (which would involve a lot of allocation
+    /// of new strings to memory which is slow), it returns them as start/end indices of the read
+    /// sequence. Most values will have an end one more than the start (e.g. 5,6) indicating a
+    /// single base. However, insertions can lead to bigger ranges (e.g. 5,7) and deletions to
+    /// zero-length ranges (e.g. 5,5).
+    pub fn get_read_bases_for_each_target_base(&self) -> Vec<(usize, usize)> {
         let mut i = 0;
         let mut read_bases = Vec::with_capacity(self.expanded_cigar.len());
         for c in self.expanded_cigar.chars() {
             if c == 'M' {
-                read_bases.push((self.read_seq.as_bytes()[i] as char).to_string());
+                read_bases.push((i, i+1));
                 i += 1;
             } else if c == 'I' {
-                read_bases.last_mut().unwrap().push(self.read_seq.as_bytes()[i] as char);
+                read_bases.last_mut().unwrap().1 = i+1;
                 i += 1;
             } else if c == 'D' {
-                read_bases.push("-".to_string());
+                read_bases.push((i, i));
             } else {
                 quit_with_error(&format!("unexpected character in CIGAR string for read {}: {:?}",
                                          self.read_name, self.cigar));
@@ -127,7 +133,7 @@ impl Alignment {
             quit_with_error(&format!("CIGAR string for read {} does not match read sequence",
                                      self.read_name));
         }
-        trim_bases_for_homopolymers(&mut read_bases);
+        trim_bases_for_homopolymers(&mut read_bases, &self.read_seq);
         read_bases
     }
 }
@@ -270,11 +276,13 @@ fn get_expanded_cigar(cigar: &str) -> String {
 /// trim off the last couple unique bases of the alignment, so the example becomes:
 ///   read: ... T G A G T A C
 ///   ref:  ... T G A G T A C A G G G G A A G T C C A G T ...
-fn trim_bases_for_homopolymers(read_bases: &mut Vec<String>) {
-    let last_base = read_bases.last().unwrap().clone();
+fn trim_bases_for_homopolymers(read_bases: &mut Vec<(usize, usize)>, read_seq: &str) {
+    let (last_start, last_end) = *read_bases.last().unwrap();
+    let last_base = &read_seq[last_start..last_end];
     while read_bases.len() > 0 {
-        let current_last = read_bases.last().unwrap().clone();
-        if current_last != last_base {
+        let (current_last_start, current_last_end) = *read_bases.last().unwrap();
+        let current_last_base = &read_seq[current_last_start..current_last_end];
+        if current_last_base != last_base {
             break;
         }
         read_bases.pop();

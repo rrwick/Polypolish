@@ -50,13 +50,13 @@ impl PileupBase {
         }
     }
 
-    pub fn add_seq(&mut self, seq: String, depth_contribution: f64) {
-        match &seq[..] {
+    pub fn add_seq(&mut self, seq: &str, depth_contribution: f64) {
+        match seq {
             "A" => {self.count_a += 1},
             "C" => {self.count_c += 1},
             "G" => {self.count_g += 1},
             "T" => {self.count_t += 1},
-            _ => {*self.counts.entry(seq).or_insert(0) += 1},
+             _  => {*self.counts.entry(seq.to_string()).or_insert(0) += 1},
         }
         self.depth += depth_contribution;
     }
@@ -144,10 +144,14 @@ impl Pileup {
     }
 
     pub fn add_alignment(&mut self, alignment: &Alignment, depth_contribution: f64) {
-        let read_bases_per_pos = alignment.get_read_bases_for_each_target_base();
+        let read_bases = alignment.get_read_bases_for_each_target_base();
         let mut i = alignment.ref_start;
-        for b in read_bases_per_pos {
-            self.bases[i].add_seq(b, depth_contribution);
+        for (start, end) in read_bases {
+            if start == end {
+                self.bases[i].add_seq("-", depth_contribution);
+            } else {
+                self.bases[i].add_seq(&alignment.read_seq[start..end], depth_contribution);
+            }
             i += 1;
         }
     }
