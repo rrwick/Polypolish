@@ -61,7 +61,7 @@ impl Alignment {
                 mismatches = nm.parse::<u32>().unwrap();
             }
         }
-        if mismatches == u32::MAX {
+        if mismatches == u32::MAX && sam_flags & 4 == 0 {
             return Err("missing NM tag");
         }
 
