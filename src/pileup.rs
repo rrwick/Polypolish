@@ -26,6 +26,14 @@ pub enum BaseStatus {
 pub struct PileupBase {
     original: char,
     pub depth: f64,
+
+    // A, C, G and T are the most common bases, so we count them with integers:
+    count_a: u32,
+    count_c: u32,
+    count_g: u32,
+    count_t: u32,
+
+    // Everything else will be counted in a HashMap:
     counts: HashMap<String, u32>,
 }
 
@@ -34,11 +42,22 @@ impl PileupBase {
         PileupBase {
             original: original,
             depth: 0.0,
+            count_a: 0,
+            count_c: 0,
+            count_g: 0,
+            count_t: 0,
             counts: HashMap::new(),
         }
     }
+
     pub fn add_seq(&mut self, seq: String, depth_contribution: f64) {
-        *self.counts.entry(seq).or_insert(0) += 1;
+        match &seq[..] {
+            "A" => {self.count_a += 1},
+            "C" => {self.count_c += 1},
+            "G" => {self.count_g += 1},
+            "T" => {self.count_t += 1},
+            _ => {*self.counts.entry(seq).or_insert(0) += 1},
+        }
         self.depth += depth_contribution;
     }
 
@@ -49,6 +68,10 @@ impl PileupBase {
         // Use banker's rounding so the behaviour matches previous Python implementation.
         let threshold = cmp::max(min_depth, bankers_rounding(self.depth * min_fraction));
         let mut valid_seqs = Vec::new();
+        if self.count_a >= threshold {valid_seqs.push("A".to_string());}
+        if self.count_c >= threshold {valid_seqs.push("C".to_string());}
+        if self.count_g >= threshold {valid_seqs.push("G".to_string());}
+        if self.count_t >= threshold {valid_seqs.push("T".to_string());}
         for (seq, count) in &self.counts {
             if count >= &threshold {
                 valid_seqs.push(seq.clone());
@@ -80,9 +103,12 @@ impl PileupBase {
         }
 
         let mut counts = Vec::new();
+        if self.count_a > 0 {counts.push(format!("Ax{}", self.count_a));}
+        if self.count_c > 0 {counts.push(format!("Cx{}", self.count_c));}
+        if self.count_g > 0 {counts.push(format!("Gx{}", self.count_g));}
+        if self.count_t > 0 {counts.push(format!("Tx{}", self.count_t));}
         for (seq, count) in &self.counts {
-            let count_str = format!("{}x{}", seq, count);
-            counts.push(count_str);
+            counts.push(format!("{}x{}", seq, count));
         }
         counts.sort();
 
