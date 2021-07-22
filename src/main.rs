@@ -34,11 +34,11 @@ struct Opts {
 
     /// Ignore alignments with more than this many mismatches and indels
     #[clap(short = 'm', long = "max_errors", default_value = "10")]
-    max_errors: i32,
+    max_errors: u32,
 
     /// A base must occur at least this many times in the pileup to be considered valid
     #[clap(short = 'd', long = "min_depth", default_value = "5")]
-    min_depth: usize,
+    min_depth: u32,
 
     /// A base must make up at least this fraction of the pileup to be considered valid
     #[clap(short = 'f', long = "min_fraction", default_value = "0.5")]
@@ -135,7 +135,8 @@ fn load_alignments(opts: &Opts, pileups: &mut HashMap<String, pileup::Pileup>) {
     let mut alignment_total: usize = 0;
     let mut used_total: usize = 0;
     for s in &opts.sam {
-        let (alignment_count, used_count, read_count) = alignment::process_sam(&s, pileups, opts.max_errors);
+        let (alignment_count, used_count, read_count) = alignment::process_sam(&s, pileups,
+                                                                               opts.max_errors);
         eprintln!("{}: {} alignments from {} reads", s.display(),
                   alignment_count.to_formatted_string(&Locale::en),
                   read_count.to_formatted_string(&Locale::en));

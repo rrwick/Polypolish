@@ -209,9 +209,9 @@ pub fn format_duration(duration: std::time::Duration) -> String {
 /// wrote it so I could replicate Python's rounding behaviour, because Rust's round function has
 /// round-half-up behaviour. I had tried using math::round::half_to_even, but that didn't seem to
 /// work correctly (rounded 42.55 to 42).
-pub fn bankers_rounding(float: f64) -> usize {
+pub fn bankers_rounding(float: f64) -> u32 {
     let fractional_part = float - float.floor();
-    let rounded_down = float as usize;
+    let rounded_down = float as u32;
     if fractional_part < 0.5 {
         return rounded_down;
     } else if fractional_part > 0.5 {

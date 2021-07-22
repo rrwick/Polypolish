@@ -32,12 +32,12 @@ lazy_static! {
 pub struct Alignment {
     read_name: String,
     ref_name: String,
-    sam_flags: i32,
+    sam_flags: u32,
     pub ref_start: usize,
     cigar: String,
     expanded_cigar: String,
     read_seq: String,
-    mismatches: i32,
+    mismatches: u32,
 }
 
 impl Alignment {
@@ -48,20 +48,20 @@ impl Alignment {
         }
 
         let read_name = parts[0];
-        let sam_flags = parts[1].parse::<i32>().unwrap();
+        let sam_flags = parts[1].parse::<u32>().unwrap();
         let ref_name = parts[2];
         let ref_start = parts[3].parse::<usize>().unwrap() - 1;
         let cigar = parts[5];
         let read_seq = parts[9];
 
-        let mut mismatches = -1;
+        let mut mismatches = u32::MAX;
         for p in &parts[11..] {
             if p.starts_with("NM:i:") {
                 let nm = p[5..].to_string();
-                mismatches = nm.parse::<i32>().unwrap();
+                mismatches = nm.parse::<u32>().unwrap();
             }
         }
-        if mismatches == -1 {
+        if mismatches == u32::MAX {
             return Err("missing NM tag");
         }
 
@@ -134,7 +134,7 @@ impl Alignment {
 
 
 pub fn process_sam(filename: &PathBuf, pileups: &mut HashMap<String, Pileup>,
-                   max_errors: i32) -> (usize, usize, usize) {
+                   max_errors: u32) -> (usize, usize, usize) {
     let result = add_to_pileup(filename, pileups, max_errors);
     match result {
         Ok((_, _, _)) => ( ),
@@ -145,7 +145,7 @@ pub fn process_sam(filename: &PathBuf, pileups: &mut HashMap<String, Pileup>,
 
 
 pub fn add_to_pileup(filename: &PathBuf, pileups: &mut HashMap<String, Pileup>,
-                     max_errors: i32) -> io::Result<(usize, usize, usize)> {
+                     max_errors: u32) -> io::Result<(usize, usize, usize)> {
     let file = File::open(&filename)?;
     let reader = BufReader::new(file);
 
@@ -196,7 +196,7 @@ pub fn add_to_pileup(filename: &PathBuf, pileups: &mut HashMap<String, Pileup>,
 
 
 fn process_one_read(alignments: Vec<Alignment>, pileups: &mut HashMap<String, Pileup>,
-                    max_errors: i32) -> usize {
+                    max_errors: u32) -> usize {
     let (read_seq, strand) = get_read_seq_from_alignments(&alignments);
 
     let mut good_alignments = Vec::new();
@@ -245,7 +245,7 @@ fn get_read_seq_from_alignments(alignments: &Vec<Alignment>) -> (String, i32) {
 fn get_expanded_cigar(cigar: &str) -> String {
     let mut expanded_cigar = String::new();
     for m in RE.find_iter(cigar) {
-        let num: i32 = cigar[m.start()..m.end()-1].parse().unwrap();
+        let num: u32 = cigar[m.start()..m.end()-1].parse().unwrap();
         let letter = &cigar[m.end()-1..m.end()];
         for _ in 0..num {
             expanded_cigar.push_str(letter);

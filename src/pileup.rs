@@ -26,7 +26,7 @@ pub enum BaseStatus {
 pub struct PileupBase {
     original: char,
     pub depth: f64,
-    counts: HashMap<String, usize>,
+    counts: HashMap<String, u32>,
 }
 
 impl PileupBase {
@@ -42,7 +42,7 @@ impl PileupBase {
         self.depth += depth_contribution;
     }
 
-    pub fn get_polished_seq(&self, min_depth: usize, min_fraction: f64,
+    pub fn get_polished_seq(&self, min_depth: u32, min_fraction: f64,
                             build_debug_line: bool) -> (String, BaseStatus, String) {
         let original = self.original.to_string();
 
@@ -73,7 +73,7 @@ impl PileupBase {
         (new_base, status, debug_line)
     }
 
-    fn get_debug_line(&self, build_debug_line: bool, threshold: usize, status: &BaseStatus,
+    fn get_debug_line(&self, build_debug_line: bool, threshold: u32, status: &BaseStatus,
                       new_base: &str) -> String {
         if !build_debug_line {
             return String::new();
