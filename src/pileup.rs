@@ -22,6 +22,7 @@ pub enum BaseStatus {
     Changed,              // one sequence passes the threshold and it differs from the original base
 }
 
+
 #[derive(Debug)]
 pub struct PileupBase {
     original: char,
@@ -94,11 +95,8 @@ impl PileupBase {
         (new_base, status, debug_line)
     }
 
-    fn get_debug_line(&self, build_debug_line: bool, threshold: u32, status: &BaseStatus,
-                      new_base: &str) -> String {
-        if !build_debug_line {
-            return String::new();
-        }
+    /// Returns the sequence counts in string form (used in the debug output).
+    fn get_count_str(&self) -> String {
         let mut counts = Vec::new();
         if self.count_a > 0 {counts.push(format!("Ax{}", self.count_a));}
         if self.count_c > 0 {counts.push(format!("Cx{}", self.count_c));}
@@ -108,6 +106,15 @@ impl PileupBase {
             counts.push(format!("{}x{}", seq, count));
         }
         counts.sort();
+        counts.join(",")
+    }
+
+    fn get_debug_line(&self, build_debug_line: bool, threshold: u32, status: &BaseStatus,
+                      new_base: &str) -> String {
+        if !build_debug_line {
+            return String::new();
+        }
+
         let status_str = match status {
             BaseStatus::OriginalBaseKept     => "kept",
             BaseStatus::Changed              => "changed",
@@ -115,7 +122,7 @@ impl PileupBase {
             BaseStatus::MultipleValidOptions => "multiple",
         };
         format!("{}\t{:.1}\t{}\t{}\t{}\t{}", self.original, self.depth, threshold,
-                counts.join(","), status_str, new_base)
+                self.get_count_str(), status_str, new_base)
     }
 }
 
@@ -148,5 +155,57 @@ impl Pileup {
             }
             i += 1;
         }
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_pileupbase_1() {
+        let mut b = PileupBase::new('G');
+        b.add_seq("A", 1.0);
+        b.add_seq("T", 1.0);
+        for _ in 0..50 {b.add_seq("G", 1.0);}
+        assert_eq!(b.get_count_str(), "Ax1,Gx50,Tx1");
+        let (polished, status, _) = b.get_polished_seq(5, 0.5, false);
+        assert_eq!(polished, "G");
+        assert!(matches!(status, BaseStatus::OriginalBaseKept));
+    }
+
+    #[test]
+    fn test_pileupbase_2() {
+        let mut b = PileupBase::new('T');
+        b.add_seq("C", 1.0);
+        for _ in 0..99 {b.add_seq("A", 1.0);}
+        assert_eq!(b.get_count_str(), "Ax99,Cx1");
+        let (polished, status, _) = b.get_polished_seq(5, 0.5, false);
+        assert_eq!(polished, "A");
+        assert!(matches!(status, BaseStatus::Changed));
+    }
+
+    #[test]
+    fn test_pileupbase_3() {
+        let mut b = PileupBase::new('A');
+        b.add_seq("T", 1.0);
+        b.add_seq("C", 1.0);
+        b.add_seq("G", 1.0);
+        assert_eq!(b.get_count_str(), "Cx1,Gx1,Tx1");
+        let (polished, status, _) = b.get_polished_seq(5, 0.5, false);
+        assert_eq!(polished, "A");
+        assert!(matches!(status, BaseStatus::NoValidOptions));
+    }
+
+    #[test]
+    fn test_pileupbase_4() {
+        let mut b = PileupBase::new('C');
+        for _ in 0..123 {b.add_seq("A", 0.1);}
+        for _ in 0..321 {b.add_seq("T", 0.1);}
+        assert_eq!(b.get_count_str(), "Ax123,Tx321");
+        let (polished, status, _) = b.get_polished_seq(5, 0.5, false);
+        assert_eq!(polished, "C");
+        assert!(matches!(status, BaseStatus::MultipleValidOptions));
     }
 }

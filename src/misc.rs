@@ -224,3 +224,46 @@ pub fn bankers_rounding(float: f64) -> u32 {
         }
     }
 }
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_format_duration() {
+        let d1 = std::time::Duration::from_micros(123456789);
+        let d2 = std::time::Duration::from_micros(3661000001);
+        let d3 = std::time::Duration::from_micros(360959000001);
+        assert_eq!(format_duration(d1), "0:02:03.456789");
+        assert_eq!(format_duration(d2), "1:01:01.000001");
+        assert_eq!(format_duration(d3), "100:15:59.000001");
+    }
+
+    #[test]
+    fn test_bankers_rounding() {
+        assert_eq!(bankers_rounding(0.0), 0);
+        assert_eq!(bankers_rounding(123.0), 123);
+        assert_eq!(bankers_rounding(98765.0), 98765);
+
+        assert_eq!(bankers_rounding(0.4999), 0);
+        assert_eq!(bankers_rounding(0.5),    0);
+        assert_eq!(bankers_rounding(0.5001), 1);
+
+        assert_eq!(bankers_rounding(42.45), 42);
+        assert_eq!(bankers_rounding(42.5),  42);
+        assert_eq!(bankers_rounding(42.55), 43);
+
+        assert_eq!(bankers_rounding(12345.4998), 12345);
+        assert_eq!(bankers_rounding(12345.5),    12346);
+        assert_eq!(bankers_rounding(12345.5002), 12346);
+    }
+
+    #[test]
+    fn test_reverse_complement() {
+        assert_eq!(reverse_complement("GGTATCACTCAGGAAGC"), "GCTTCCTGAGTGATACC");
+        assert_eq!(reverse_complement("GGGGaaaaaaaatttatatat"), "atatataaattttttttCCCC");
+        assert_eq!(reverse_complement("atatataaattttttttCCCC"), "GGGGaaaaaaaatttatatat");
+        assert_eq!(reverse_complement("ACGT123"), "NNNACGT");
+    }
+}

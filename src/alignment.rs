@@ -290,3 +290,16 @@ fn trim_bases_for_homopolymers(read_bases: &mut Vec<(usize, usize)>, read_seq: &
         read_bases.pop();
     }
 }
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_get_expanded_cigar() {
+        assert_eq!(get_expanded_cigar("10M", 10), "MMMMMMMMMM");
+        assert_eq!(get_expanded_cigar("3M1I7M", 11), "MMMIMMMMMMM");
+        assert_eq!(get_expanded_cigar("5M2D4M", 9), "MMMMMDDMMMM");
+    }
+}
