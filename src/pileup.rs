@@ -9,10 +9,10 @@
 // Public License for more details. You should have received a copy of the GNU General Public
 // License along with Polypolish. If not, see <http://www.gnu.org/licenses/>.
 
-use std::collections::HashMap;
-use std::cmp;
 use crate::alignment::Alignment;
 use crate::misc::bankers_rounding;
+
+use std::collections::HashMap;
 
 
 pub enum BaseStatus {
@@ -65,7 +65,7 @@ impl PileupBase {
     pub fn get_polished_seq(&self, min_depth: u32, min_fraction: f64,
                             build_debug_line: bool) -> (String, BaseStatus, String) {
         let original = self.original.to_string();
-        let threshold = cmp::max(min_depth, bankers_rounding(self.depth * min_fraction));
+        let threshold = std::cmp::max(min_depth, bankers_rounding(self.depth * min_fraction));
         let mut valid_seqs = Vec::new();
         if self.count_a >= threshold {valid_seqs.push("A".to_string());}
         if self.count_c >= threshold {valid_seqs.push("C".to_string());}

@@ -9,22 +9,22 @@
 // Public License for more details. You should have received a copy of the GNU General Public
 // License along with Polypolish. If not, see <http://www.gnu.org/licenses/>.
 
-use crate::pileup::Pileup;
-use crate::misc::{quit_with_error, reverse_complement};
+use lazy_static::lazy_static;
+use regex::Regex;
 
-use std::path::PathBuf;
+use crate::misc::{quit_with_error, reverse_complement};
+use crate::pileup::Pileup;
+
 use std::collections::HashMap;
 use std::fs::File;
 use std::io;
 use std::io::{prelude::*, BufReader};
+use std::path::PathBuf;
 use std::result::Result;
-
-use regex::Regex;
-use lazy_static::lazy_static;
 
 
 lazy_static! {
-    static ref RE: Regex = Regex::new(r"\d+[MIDNSHP=X]").unwrap();
+    static ref RE: Regex = regex::Regex::new(r"\d+[MIDNSHP=X]").unwrap();
 }
 
 

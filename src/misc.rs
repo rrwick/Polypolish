@@ -9,13 +9,13 @@
 // Public License for more details. You should have received a copy of the GNU General Public
 // License along with Polypolish. If not, see <http://www.gnu.org/licenses/>.
 
-use std::path::Path;
-use std::path::PathBuf;
+use flate2::read::GzDecoder;
+
+use std::collections::HashSet;
 use std::fs::File;
 use std::io;
 use std::io::{prelude::*, BufReader};
-use std::collections::HashSet;
-use flate2::read::GzDecoder;
+use std::path::{Path, PathBuf};
 
 
 pub fn check_if_file_exists(filename: &PathBuf) {
