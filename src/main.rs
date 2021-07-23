@@ -82,9 +82,7 @@ fn starting_message(opts: &Opts) {
                       read has been aligned to all possible locations (not just a single best \
                       location). This allows it to repair errors in repeat regions that other \
                       alignment-based polishers cannot fix.");
-
-    const VERSION: &'static str = env!("CARGO_PKG_VERSION");
-    eprintln!("Polypolish version: {}", VERSION);
+    eprintln!("Polypolish version: {}", crate_version!());
     eprintln!();
     eprintln!("Input assembly:");
     eprintln!("  {}", opts.assembly.display());
@@ -100,7 +98,7 @@ fn starting_message(opts: &Opts) {
     eprintln!("  --min_fraction {}", opts.min_fraction);
     match &opts.debug {
         Some(filename) => eprintln!("  --debug {}", filename.display()),
-        None => eprintln!("  not logging debugging information"),
+        None           => eprintln!("  not logging debugging information"),
     }
     eprintln!();
 }
@@ -115,7 +113,7 @@ fn finished_message(opts: &Opts, new_lengths: Vec<(String, usize)>, start_time: 
     eprintln!();
     match &opts.debug {
         Some(filename) => eprintln!("Per-base debugging info written to {}", filename.display()),
-        None => {},
+        None           => {},
     }
     eprintln!("Time to run: {}", misc::format_duration(start_time.elapsed()));
     eprintln!();
@@ -124,11 +122,9 @@ fn finished_message(opts: &Opts, new_lengths: Vec<(String, usize)>, start_time: 
 
 fn load_assembly(assembly_filename: &PathBuf) -> (Vec<String>, HashMap<String, pileup::Pileup>) {
     log::section_header("Loading assembly");
-
     let fasta = misc::load_fasta(assembly_filename);
     let mut seq_names = Vec::new();
     let mut pileups = HashMap::new();
-
     for (name, sequence) in &fasta {
         eprintln!("{} ({} bp)", name, sequence.len().to_formatted_string(&Locale::en));
         seq_names.push(name.clone());
@@ -196,7 +192,7 @@ fn polish_one_sequence(opts: &Opts, name: &str, pileup: &pileup::Pileup,
                                                            build_debug_str);
         match status {
             pileup::BaseStatus::Changed => {changed_count += 1}
-            _ => {}
+            _                           => {}
         }
         total_depth += b.depth;
         if b.depth == 0.0 {
@@ -204,7 +200,7 @@ fn polish_one_sequence(opts: &Opts, name: &str, pileup: &pileup::Pileup,
         }
         match debug_file {
             Some(file) => write_debug_line(file, name, pos, &debug_line, opts),
-            None => {},
+            None       => {},
         }
         polished_seq.push_str(&seq);
         pos += 1;
@@ -243,12 +239,12 @@ fn print_polishing_info(seq_len: usize, total_depth: f64, zero_depth_count: usiz
 fn create_debug_file(opts: &Opts) -> Option<File> {
     match &opts.debug {
         Some(_) => {},
-        None => return None,
+        None    => {return None;},
     }
     let filename = opts.debug.as_ref().unwrap();
     let create_result = File::create(filename);
     match create_result {
-        Ok(_) => ( ),
+        Ok(_)  => (),
         Err(_) => misc::quit_with_error(&format!("unable to create {:?}", filename)),
     }
     let mut file = create_result.unwrap();
@@ -261,7 +257,7 @@ fn write_debug_header(file: &mut File, filename: &PathBuf) {
     let header = "name\tpos\tbase\tdepth\tthreshold\tpileup\tstatus\tnew_base\n";
     let result = file.write_all(header.as_bytes());
     match result {
-        Ok(_) => (),
+        Ok(_)  => (),
         Err(_) => misc::quit_with_error(&format!("unable to write to file {:?}", filename)),
     }
 }
@@ -271,7 +267,7 @@ fn write_debug_line(file: &mut File, name: &str, pos: usize, debug_line: &str, o
     let debug_line: String = format!("{}\t{}\t{}\n", name, pos, debug_line);
     let result = file.write_all(debug_line.as_bytes());
     match result {
-        Ok(_) => (),
+        Ok(_)  => (),
         Err(_) => misc::quit_with_error(&format!("unable to write to file {:?}",
                                                  opts.debug.as_ref().unwrap())),
     }

@@ -143,8 +143,8 @@ pub fn process_sam(filename: &PathBuf, pileups: &mut HashMap<String, Pileup>,
                    max_errors: u32) -> (usize, usize, usize) {
     let result = add_to_pileup(filename, pileups, max_errors);
     match result {
-        Ok((_, _, _)) => ( ),
-        Err(_) => quit_with_error(&format!("unable to load alignments from {:?}", filename)),
+        Ok((_,_,_)) => (),
+        Err(_)      => quit_with_error(&format!("unable to load alignments from {:?}", filename)),
     }
     result.unwrap()
 }
@@ -171,9 +171,8 @@ pub fn add_to_pileup(filename: &PathBuf, pileups: &mut HashMap<String, Pileup>,
 
         let alignment_result = Alignment::new(&sam_line);
         match alignment_result {
-            Ok(_) => ( ),
-            Err(e) => quit_with_error(&format!("{} in {:?} (line {})",
-                                               e, filename, line_count)),
+            Ok(_)  => (),
+            Err(e) => quit_with_error(&format!("{} in {:?} (line {})", e, filename, line_count)),
         }
         let alignment = alignment_result.unwrap();
         if !alignment.is_aligned() {continue;}

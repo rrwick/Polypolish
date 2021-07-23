@@ -27,13 +27,13 @@ pub struct PileupBase {
     original: char,
     pub depth: f64,
 
-    // A, C, G and T are the most common bases, so we count them with integers:
+    // A, C, G and T are the most common sequences, so we count them with integers (fast):
     count_a: u32,
     count_c: u32,
     count_g: u32,
     count_t: u32,
 
-    // Everything else will be counted in a HashMap:
+    // Everything else will be counted in a HashMap (slower but can handle any sequence):
     counts: HashMap<String, u32>,
 }
 
@@ -64,8 +64,6 @@ impl PileupBase {
     pub fn get_polished_seq(&self, min_depth: u32, min_fraction: f64,
                             build_debug_line: bool) -> (String, BaseStatus, String) {
         let original = self.original.to_string();
-
-        // Use banker's rounding so the behaviour matches previous Python implementation.
         let threshold = cmp::max(min_depth, bankers_rounding(self.depth * min_fraction));
         let mut valid_seqs = Vec::new();
         if self.count_a >= threshold {valid_seqs.push("A".to_string());}
@@ -88,7 +86,7 @@ impl PileupBase {
             }
         } else if valid_seqs.len() == 0 {
             status = BaseStatus::NoValidOptions;
-        } else {  // valid_seqs.len() > 0
+        } else {
             status = BaseStatus::MultipleValidOptions;
         }
 
@@ -101,7 +99,6 @@ impl PileupBase {
         if !build_debug_line {
             return String::new();
         }
-
         let mut counts = Vec::new();
         if self.count_a > 0 {counts.push(format!("Ax{}", self.count_a));}
         if self.count_c > 0 {counts.push(format!("Cx{}", self.count_c));}
@@ -111,15 +108,12 @@ impl PileupBase {
             counts.push(format!("{}x{}", seq, count));
         }
         counts.sort();
-
         let status_str = match status {
-            BaseStatus::OriginalBaseKept => "kept",
-            BaseStatus::Changed => "changed",
-            BaseStatus::NoValidOptions => "none",
+            BaseStatus::OriginalBaseKept     => "kept",
+            BaseStatus::Changed              => "changed",
+            BaseStatus::NoValidOptions       => "none",
             BaseStatus::MultipleValidOptions => "multiple",
-
         };
-
         format!("{}\t{:.1}\t{}\t{}\t{}\t{}", self.original, self.depth, threshold,
                 counts.join(","), status_str, new_base)
     }

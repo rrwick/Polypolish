@@ -42,7 +42,7 @@ pub fn load_fasta(filename: &PathBuf) -> Vec<(String, String)> {
         load_fasta_not_gzipped(&filename)
     };
     match load_result {
-        Ok(_) => ( ),
+        Ok(_)  => (),
         Err(_) => quit_with_error(&format!("unable to load {:?}", filename)),
     }
     let fasta_seqs = load_result.unwrap();
@@ -81,7 +81,7 @@ fn check_load_fasta(fasta_seqs: &Vec<(String, String)>, filename: &PathBuf) {
 fn is_file_gzipped(filename: &PathBuf) -> bool {
     let open_result = File::open(&filename);
     match open_result {
-        Ok(_) => ( ),
+        Ok(_)  => (),
         Err(_) => quit_with_error(&format!("unable to open {:?}", filename)),
     }
     let file = open_result.unwrap();
@@ -91,7 +91,7 @@ fn is_file_gzipped(filename: &PathBuf) -> bool {
 
     let read_result = reader.read_exact(&mut buf);
     match read_result {
-        Ok(_) => ( ),
+        Ok(_)  => (),
         Err(_) => quit_with_error(&format!("{:?} is too small", filename)),
     }
 
@@ -116,8 +116,8 @@ fn load_fasta_not_gzipped(filename: &PathBuf) -> io::Result<Vec<(String, String)
             }
             let first_piece = text[1..].split_whitespace().next();
             match first_piece {
-                Some(_) => ( ),
-                None => quit_with_error(&format!("{:?} is not correctly formatted", filename)),
+                Some(_) => (),
+                None    => quit_with_error(&format!("{:?} is not correctly formatted", filename)),
             }
             name = first_piece.unwrap().to_string();
         } else {
@@ -152,8 +152,8 @@ fn load_fasta_gzipped(filename: &PathBuf) -> io::Result<Vec<(String, String)>> {
             }
             let first_piece = text[1..].split_whitespace().next();
             match first_piece {
-                Some(_) => ( ),
-                None => quit_with_error(&format!("{:?} is not correctly formatted", filename)),
+                Some(_) => (),
+                None    => quit_with_error(&format!("{:?} is not correctly formatted", filename)),
             }
             name = first_piece.unwrap().to_string();
         } else {
