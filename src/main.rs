@@ -229,8 +229,9 @@ fn print_polishing_info(seq_len: usize, total_depth: f64, zero_depth_count: usiz
 
     let changed_percent = 100.0 * (changed_count as f64) / seq_len_f64;
     let estimated_accuracy = 100.0 - changed_percent;
-    eprintln!("  {} positions changed ({:.4}% of total positions)",
-              changed_count.to_formatted_string(&Locale::en), changed_percent);
+    let positions = if changed_count == 1 {"position"} else {"positions"};
+    eprintln!("  {} {} changed ({:.4}% of total positions)",
+              changed_count.to_formatted_string(&Locale::en), positions, changed_percent);
     eprintln!("  estimated pre-polishing sequence accuracy: {:.4}%", estimated_accuracy);
     eprintln!();
 }
