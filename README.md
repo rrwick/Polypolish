@@ -1,4 +1,4 @@
-<p align="center"><img src="images/logo.png" alt="Polypolish" width="70%"></p>
+<p align="center"><img src="images/logo_transparent.png" alt="Polypolish" width="70%"></p>
 
 Polypolish is a tool for polishing genome assemblies with short reads. Unlike other tools in this category, Polypolish uses SAM files where each read has been aligned to _all_ possible locations (not just a single best location). This allows it to repair errors in repeat regions that other alignment-based polishers cannot fix.
 
