@@ -243,7 +243,7 @@ fn get_read_seq_from_alignments(alignments: &Vec<Alignment>) -> (String, i8) {
     }
     let read_name = &alignments.first().unwrap().read_name;
     quit_with_error(&format!("no alignments for read {} contain sequence", read_name));
-    ("".to_string(), 0)  // never reached
+    unreachable!();
 }
 
 
