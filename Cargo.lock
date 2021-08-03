@@ -244,7 +244,7 @@ checksum = "afb2e1c3ee07430c2cf76151675e583e0f19985fa6efae47d6848a3e2c824f85"
 
 [[package]]
 name = "polypolish"
-version = "0.4.1"
+version = "0.4.2"
 dependencies = [
  "chrono",
  "clap",
