@@ -80,7 +80,9 @@ impl PileupBase {
         let mut new_base = original.clone();
         let mut status = BaseStatus::OriginalBaseKept;
 
-        if valid_seqs.len() == 1 {
+        if self.depth < min_depth as f64 {
+            status = BaseStatus::NoValidOptions;
+        } else if valid_seqs.len() == 1 {
             new_base = valid_seqs[0].clone();
             if new_base != original {
                 status = BaseStatus::Changed;
