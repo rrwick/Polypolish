@@ -49,7 +49,7 @@ struct Opts {
     #[clap(short = 'd', long = "min_depth", default_value = "5")]
     min_depth: u32,
 
-    /// A base must make up at least this fraction of the pileup to be considered valid
+    /// A base must make up at least this fraction of the read depth to be considered valid
     #[clap(short = 'f', long = "min_fraction", default_value = "0.5")]
     min_fraction: f64,
 
@@ -58,11 +58,11 @@ struct Opts {
     #[clap(short = 'r', long = "min_ratio", default_value = "2.0")]
     min_ratio: f64,
 
-    /// Assembly to polish (FASTA format)
+    /// Assembly to polish (one file in FASTA format)
     #[clap(parse(from_os_str), required = true)]
     assembly: PathBuf,
 
-    /// Short read alignments (SAM format, one or more files)
+    /// Short read alignments (one or more files in SAM format)
     #[clap(parse(from_os_str), required = true)]
     sam: Vec<PathBuf>,
 }
