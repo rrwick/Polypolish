@@ -53,6 +53,11 @@ struct Opts {
     #[clap(short = 'f', long = "min_fraction", default_value = "0.5")]
     min_fraction: f64,
 
+    /// A base will only be changed if the best option occurs this many times more often than the
+    /// second-best option
+    #[clap(short = 'r', long = "min_ratio", default_value = "2.0")]
+    min_ratio: f64,
+
     /// Assembly to polish (FASTA format)
     #[clap(parse(from_os_str), required = true)]
     assembly: PathBuf,
@@ -96,6 +101,7 @@ fn starting_message(opts: &Opts) {
     eprintln!("  --max_errors {}", opts.max_errors);
     eprintln!("  --min_depth {}", opts.min_depth);
     eprintln!("  --min_fraction {}", opts.min_fraction);
+    eprintln!("  --min_ratio {}", opts.min_ratio);
     match &opts.debug {
         Some(filename) => eprintln!("  --debug {}", filename.display()),
         None           => eprintln!("  not logging debugging information"),
@@ -189,7 +195,7 @@ fn polish_one_sequence(opts: &Opts, name: &str, pileup: &pileup::Pileup,
 
     for b in &pileup.bases {
         let (seq, status, debug_line) = b.get_polished_seq(opts.min_depth, opts.min_fraction,
-                                                           build_debug_str);
+                                                           opts.min_ratio, build_debug_str);
         match status {
             pileup::BaseStatus::Changed => {changed_count += 1}
             _                           => {}
