@@ -17,11 +17,11 @@ use std::collections::HashMap;
 
 pub enum BaseStatus {
     DepthTooLow,          // not enough read depth (not changed)
-    NoValidOptions,       // no sequences pass the threshold (not changed)
-    MultipleValidOptions, // multiple sequences pass the threshold (not changed)
-    TooClose,             // next-best option is too close to the best option (not changed)
-    OriginalBaseKept,     // one sequence passes the threshold and it matches the original base
-    Changed,              // one sequence passes the threshold and it differs from the original base
+    NoValidOptions,       // no sequences pass the valid threshold (not changed)
+    MultipleValidOptions, // multiple sequences pass the valid threshold (not changed)
+    TooClose,             // there is one or more almost-valid sequences (not changed)
+    OriginalBaseKept,     // one valid sequence and it matches the original base
+    Changed,              // one valid sequence and it differs from the original base
 }
 
 
@@ -64,20 +64,47 @@ impl PileupBase {
         self.depth += depth_contribution;
     }
 
-    pub fn get_polished_seq(&self, min_depth: u32, min_fraction: f64, min_ratio: f64,
+    pub fn get_polished_seq(&self, min_depth: u32, fraction_valid: f64, fraction_invalid: f64,
                             build_debug_line: bool) -> (String, BaseStatus, String) {
         let original = self.original.to_string();
-        let threshold = std::cmp::max(min_depth, bankers_rounding(self.depth * min_fraction));
-        let mut valid_seqs = Vec::new();
-        if self.count_a >= threshold {valid_seqs.push("A".to_string());}
-        if self.count_c >= threshold {valid_seqs.push("C".to_string());}
-        if self.count_g >= threshold {valid_seqs.push("G".to_string());}
-        if self.count_t >= threshold {valid_seqs.push("T".to_string());}
+        let valid_threshold = std::cmp::max(min_depth,
+                                            bankers_rounding(self.depth * fraction_valid));
+        let invalid_threshold = bankers_rounding(self.depth * fraction_invalid);
+
+        let mut valid_seqs = Vec::new();  // holds sequences above the valid threshold
+        let mut intermediate_seqs = Vec::new();  // holds sequences between the two thresholds
+
+        if self.count_a >= valid_threshold {
+            valid_seqs.push("A".to_string());
+        } else if self.count_a >= invalid_threshold {
+            intermediate_seqs.push("A".to_string());
+        }
+
+        if self.count_c >= valid_threshold {
+            valid_seqs.push("C".to_string());
+        } else if self.count_c >= invalid_threshold {
+            intermediate_seqs.push("C".to_string());
+        }
+
+        if self.count_g >= valid_threshold {
+            valid_seqs.push("G".to_string());
+        } else if self.count_g >= invalid_threshold {
+            intermediate_seqs.push("G".to_string());
+        }
+
+        if self.count_t >= valid_threshold {
+            valid_seqs.push("T".to_string());
+        } else if self.count_t >= invalid_threshold {
+            intermediate_seqs.push("T".to_string());
+        }
+
         let mut all_counts = vec![self.count_a, self.count_c, self.count_g, self.count_t];
         for (seq, count) in &self.counts {
             all_counts.push(*count);
-            if count >= &threshold {
+            if count >= &valid_threshold {
                 valid_seqs.push(seq.clone());
+            } else if count >= &invalid_threshold {
+                intermediate_seqs.push(seq.clone());
             }
         }
 
@@ -87,7 +114,7 @@ impl PileupBase {
         if self.depth < min_depth as f64 {
             status = BaseStatus::DepthTooLow;
         } else if valid_seqs.len() == 1 {
-            if is_too_close(&mut all_counts, min_ratio) {
+            if intermediate_seqs.len() > 0 {
                 status = BaseStatus::TooClose;
             } else {
                 new_base = valid_seqs[0].clone();
@@ -97,11 +124,12 @@ impl PileupBase {
             }
         } else if valid_seqs.len() == 0 {
             status = BaseStatus::NoValidOptions;
-        } else {
+        } else {  // valid_seqs.len() > 1
             status = BaseStatus::MultipleValidOptions;
         }
 
-        let debug_line = self.get_debug_line(build_debug_line, threshold, &status, &new_base);
+        let debug_line = self.get_debug_line(build_debug_line, valid_threshold, invalid_threshold,
+                                             &status, &new_base);
         (new_base, status, debug_line)
     }
 
@@ -119,8 +147,8 @@ impl PileupBase {
         counts.join(",")
     }
 
-    fn get_debug_line(&self, build_debug_line: bool, threshold: u32, status: &BaseStatus,
-                      new_base: &str) -> String {
+    fn get_debug_line(&self, build_debug_line: bool, valid_threshold: u32, invalid_threshold: u32,
+                      status: &BaseStatus, new_base: &str) -> String {
         if !build_debug_line {
             return String::new();
         }
@@ -133,8 +161,8 @@ impl PileupBase {
             BaseStatus::MultipleValidOptions => "multiple",
             BaseStatus::TooClose             => "too_close",
         };
-        format!("{}\t{:.1}\t{}\t{}\t{}\t{}", self.original, self.depth, threshold,
-                self.get_count_str(), status_str, new_base)
+        format!("{}\t{:.1}\t{}\t{}\t{}\t{}\t{}", self.original, self.depth, invalid_threshold,
+                valid_threshold, self.get_count_str(), status_str, new_base)
     }
 }
 
@@ -173,139 +201,95 @@ impl Pileup {
 }
 
 
-fn is_too_close(all_counts: &mut Vec<u32>, min_ratio: f64) -> bool {
-    all_counts.sort();
-    let highest_count = all_counts.pop().unwrap();
-    let second_highest_count = all_counts.pop().unwrap();
-    if second_highest_count == 0 {
-        return false;
-    }
-    let ratio = highest_count as f64 / second_highest_count as f64;
-    ratio < min_ratio
-}
-
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn test_is_too_close_1() {
-        let mut all_counts = vec![1, 1, 100, 1, 1];
-        assert!(!is_too_close(&mut all_counts, 2.0));
-
-        let mut all_counts = vec![1, 20, 100, 1, 1];
-        assert!(!is_too_close(&mut all_counts, 2.0));
-
-        let mut all_counts = vec![1, 40, 100, 1, 1];
-        assert!(!is_too_close(&mut all_counts, 2.0));
-
-        let mut all_counts = vec![1, 60, 100, 1, 1];
-        assert!(is_too_close(&mut all_counts, 2.0));
-
-        let mut all_counts = vec![1, 70, 100, 1, 1];
-        assert!(is_too_close(&mut all_counts, 2.0));
+    fn test_pileupbase_01() {
+        let mut b = PileupBase::new('A');
+        for _ in 0..50 {b.add_seq("A", 1.0);}
+        assert_eq!(b.get_count_str(), "Ax50");
+        let (polished, status, _) = b.get_polished_seq(5, 0.5, 0.2, false);
+        assert_eq!(polished, "A");
+        assert!(matches!(status, BaseStatus::OriginalBaseKept));
     }
 
     #[test]
-    fn test_is_too_close_2() {
-        let mut all_counts = vec![1, 1, 100, 1, 1];
-        assert!(!is_too_close(&mut all_counts, 4.0));
-
-        let mut all_counts = vec![1, 20, 100, 1, 1];
-        assert!(!is_too_close(&mut all_counts, 4.0));
-
-        let mut all_counts = vec![1, 40, 100, 1, 1];
-        assert!(is_too_close(&mut all_counts, 4.0));
-    }
-
-    #[test]
-    fn test_is_too_close_3() {
-        let mut all_counts = vec![0, 0, 0, 0, 0];
-        assert!(!is_too_close(&mut all_counts, 2.0));
-
-        let mut all_counts = vec![0, 0, 10, 0, 0];
-        assert!(!is_too_close(&mut all_counts, 2.0));
-
-        let mut all_counts = vec![0, 0, 100, 0, 0];
-        assert!(!is_too_close(&mut all_counts, 2.0));
-    }
-
-    #[test]
-    fn test_pileupbase_1() {
+    fn test_pileupbase_02() {
         let mut b = PileupBase::new('G');
         b.add_seq("A", 1.0);
         b.add_seq("T", 1.0);
         for _ in 0..50 {b.add_seq("G", 1.0);}
         assert_eq!(b.get_count_str(), "Ax1,Gx50,Tx1");
-        let (polished, status, _) = b.get_polished_seq(5, 0.5, 2.0, false);
+        let (polished, status, _) = b.get_polished_seq(5, 0.5, 0.2, false);
         assert_eq!(polished, "G");
         assert!(matches!(status, BaseStatus::OriginalBaseKept));
     }
 
     #[test]
-    fn test_pileupbase_2() {
+    fn test_pileupbase_03() {
         let mut b = PileupBase::new('T');
         b.add_seq("C", 1.0);
         for _ in 0..99 {b.add_seq("A", 1.0);}
         assert_eq!(b.get_count_str(), "Ax99,Cx1");
-        let (polished, status, _) = b.get_polished_seq(5, 0.5, 2.0, false);
+        let (polished, status, _) = b.get_polished_seq(5, 0.5, 0.2, false);
         assert_eq!(polished, "A");
         assert!(matches!(status, BaseStatus::Changed));
     }
 
     #[test]
-    fn test_pileupbase_3() {
+    fn test_pileupbase_04() {
         let mut b = PileupBase::new('A');
         b.add_seq("T", 1.0);
         b.add_seq("C", 1.0);
         b.add_seq("G", 1.0);
         assert_eq!(b.get_count_str(), "Cx1,Gx1,Tx1");
-        let (polished, status, _) = b.get_polished_seq(5, 0.5, 2.0, false);
+        let (polished, status, _) = b.get_polished_seq(5, 0.5, 0.2, false);
         assert_eq!(polished, "A");
         assert!(matches!(status, BaseStatus::DepthTooLow));
     }
 
     #[test]
-    fn test_pileupbase_4() {
+    fn test_pileupbase_05() {
         let mut b = PileupBase::new('C');
         for _ in 0..123 {b.add_seq("A", 0.1);}
         for _ in 0..321 {b.add_seq("T", 0.1);}
         assert_eq!(b.get_count_str(), "Ax123,Tx321");
-        let (polished, status, _) = b.get_polished_seq(5, 0.5, 2.0, false);
+        let (polished, status, _) = b.get_polished_seq(5, 0.5, 0.2, false);
         assert_eq!(polished, "C");
         assert!(matches!(status, BaseStatus::MultipleValidOptions));
     }
 
     #[test]
-    fn test_pileupbase_5() {
+    fn test_pileupbase_06() {
         let mut b = PileupBase::new('T');
         for _ in 0..6 { b.add_seq("A", 1.0); }
         for _ in 0..4 { b.add_seq("C", 1.0); }
         assert_eq!(b.get_count_str(), "Ax6,Cx4");
-        let (polished, status, _) = b.get_polished_seq(5, 0.5, 2.0, false);
+        let (polished, status, _) = b.get_polished_seq(5, 0.5, 0.2, false);
         assert_eq!(polished, "T");
         assert!(matches!(status, BaseStatus::TooClose));
     }
 
     #[test]
-    fn test_pileupbase_6() {
+    fn test_pileupbase_07() {
         let mut b = PileupBase::new('T');
         for _ in 0..9 { b.add_seq("A", 1.0); }
         b.add_seq("C", 1.0);
         assert_eq!(b.get_count_str(), "Ax9,Cx1");
-        let (polished, status, _) = b.get_polished_seq(5, 0.5, 10.0, false);
+        let (polished, status, _) = b.get_polished_seq(5, 0.5, 0.1, false);
         assert_eq!(polished, "T");
         assert!(matches!(status, BaseStatus::TooClose));
     }
 
     #[test]
-    fn test_pileupbase_7() {
+    fn test_pileupbase_08() {
         let mut b = PileupBase::new('T');
-        for _ in 0..11 { b.add_seq("A", 1.0); }
+        for _ in 0..19 { b.add_seq("A", 1.0); }
         b.add_seq("C", 1.0);
-        assert_eq!(b.get_count_str(), "Ax11,Cx1");
-        let (polished, status, _) = b.get_polished_seq(5, 0.5, 10.0, false);
+        assert_eq!(b.get_count_str(), "Ax19,Cx1");
+        let (polished, status, _) = b.get_polished_seq(5, 0.5, 0.1, false);
         assert_eq!(polished, "A");
         assert!(matches!(status, BaseStatus::Changed));
     }

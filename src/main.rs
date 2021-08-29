@@ -41,6 +41,14 @@ struct Opts {
     #[clap(long = "debug")]
     debug: Option<PathBuf>,
 
+    /// A base must make up less than this fraction of the read depth to be considered invalid
+    #[clap(short = 'i', long = "fraction_invalid", default_value = "0.2")]
+    fraction_invalid: f64,
+
+    /// A base must make up at least this fraction of the read depth to be considered valid
+    #[clap(short = 'v', long = "fraction_valid", default_value = "0.5")]
+    fraction_valid: f64,
+
     /// Ignore alignments with more than this many mismatches and indels
     #[clap(short = 'm', long = "max_errors", default_value = "10")]
     max_errors: u32,
@@ -48,15 +56,6 @@ struct Opts {
     /// A base must occur at least this many times in the pileup to be considered valid
     #[clap(short = 'd', long = "min_depth", default_value = "5")]
     min_depth: u32,
-
-    /// A base must make up at least this fraction of the read depth to be considered valid
-    #[clap(short = 'f', long = "min_fraction", default_value = "0.5")]
-    min_fraction: f64,
-
-    /// A base will only be changed if the best option occurs this many times more often than the
-    /// second-best option
-    #[clap(short = 'r', long = "min_ratio", default_value = "2.0")]
-    min_ratio: f64,
 
     /// Assembly to polish (one file in FASTA format)
     #[clap(parse(from_os_str), required = true)]
@@ -71,6 +70,7 @@ struct Opts {
 fn main() {
     let opts: Opts = Opts::parse();
     let start_time = Instant::now();
+    check_option_values(&opts);
     check_inputs_exist(&opts);
     starting_message(&opts);
     let (seq_names, mut pileups) = load_assembly(&opts.assembly);
@@ -98,10 +98,10 @@ fn starting_message(opts: &Opts) {
     }
     eprintln!();
     eprintln!("Settings:");
+    eprintln!("  --fraction_invalid {}", opts.fraction_invalid);
+    eprintln!("  --fraction_valid {}", opts.fraction_valid);
     eprintln!("  --max_errors {}", opts.max_errors);
     eprintln!("  --min_depth {}", opts.min_depth);
-    eprintln!("  --min_fraction {}", opts.min_fraction);
-    eprintln!("  --min_ratio {}", opts.min_ratio);
     match &opts.debug {
         Some(filename) => eprintln!("  --debug {}", filename.display()),
         None           => eprintln!("  not logging debugging information"),
@@ -194,8 +194,8 @@ fn polish_one_sequence(opts: &Opts, name: &str, pileup: &pileup::Pileup,
     let build_debug_str = match debug_file {Some(_) => true, None => false};
 
     for b in &pileup.bases {
-        let (seq, status, debug_line) = b.get_polished_seq(opts.min_depth, opts.min_fraction,
-                                                           opts.min_ratio, build_debug_str);
+        let (seq, status, debug_line) = b.get_polished_seq(opts.min_depth, opts.fraction_valid,
+                                                           opts.fraction_invalid, build_debug_str);
         match status {
             pileup::BaseStatus::Changed => {changed_count += 1}
             _                           => {}
@@ -261,7 +261,7 @@ fn create_debug_file(opts: &Opts) -> Option<File> {
 
 
 fn write_debug_header(file: &mut File, filename: &PathBuf) {
-    let header = "name\tpos\tbase\tdepth\tthreshold\tpileup\tstatus\tnew_base\n";
+    let header = "name\tpos\tbase\tdepth\tinvalid\tvalid\tpileup\tstatus\tnew_base\n";
     let result = file.write_all(header.as_bytes());
     match result {
         Ok(_)  => (),
@@ -285,5 +285,18 @@ fn check_inputs_exist(opts: &Opts) {
     misc::check_if_file_exists(&opts.assembly);
     for s in &opts.sam {
         misc::check_if_file_exists(&s);
+    }
+}
+
+
+fn check_option_values(opts: &Opts) {
+    if opts.fraction_valid <= 0.0 || opts.fraction_valid >= 1.0 {
+        misc::quit_with_error("--fraction_valid must be between 0 and 1 (exclusive)")
+    }
+    if opts.fraction_invalid <= 0.0 || opts.fraction_invalid >= 1.0 {
+        misc::quit_with_error("--fraction_invalid must be between 0 and 1 (exclusive)")
+    }
+    if opts.fraction_invalid >= opts.fraction_valid {
+        misc::quit_with_error("--fraction_invalid must be less than --fraction_valid")
     }
 }
