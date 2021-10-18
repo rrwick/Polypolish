@@ -4,4 +4,6 @@ Polypolish is a tool for polishing genome assemblies with short reads. Unlike ot
 
 For installation instructions, usage, deeper explanations and more, head over to the [Polypolish wiki](https://github.com/rrwick/Polypolish/wiki)!
 
+For our paper describing Polypolish, follow this link: [Wick RR, Holt KE. Polypolish: short-read polishing of long-read bacterial genome assemblies. bioRxiv. 2021. doi:10.1101/2021.10.14.464465.](https://doi.org/10.1101/2021.10.14.464465)
+
 [![License GPL v3](https://img.shields.io/badge/license-GPL%20v3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0.en.html) [![Build Status](https://travis-ci.com/rrwick/Polypolish.svg?token=71gNPkycVbFoEsJC4qcj&branch=main)](https://travis-ci.com/rrwick/Polypolish)
