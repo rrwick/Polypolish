@@ -38,6 +38,7 @@ pub struct Alignment {
     expanded_cigar: String,
     pub read_seq: String,
     mismatches: u32,
+    pass_qc: bool,
 }
 
 impl Alignment {
@@ -55,10 +56,14 @@ impl Alignment {
         let read_seq = parts[9];
 
         let mut mismatches = u32::MAX;
+        let mut pass_qc = true;
         for p in &parts[11..] {
             if p.starts_with("NM:i:") {
                 let nm = p[5..].to_string();
                 mismatches = nm.parse::<u32>().unwrap();
+            }
+            if p.eq_ignore_ascii_case("ZP:Z:fail") {
+                pass_qc = false;
             }
         }
         if mismatches == u32::MAX && sam_flags & 4 == 0 {
@@ -74,6 +79,7 @@ impl Alignment {
             expanded_cigar: get_expanded_cigar(&cigar, read_seq.len()),
             read_seq: read_seq.to_ascii_uppercase(),
             mismatches: mismatches,
+            pass_qc: pass_qc,
         })
     }
 
@@ -206,7 +212,7 @@ fn process_one_read(alignments: Vec<Alignment>, pileups: &mut HashMap<String, Pi
 
     let mut good_alignments = Vec::new();
     for a in alignments {
-        if a.starts_and_ends_with_match() && a.mismatches <= max_errors {
+        if a.starts_and_ends_with_match() && a.mismatches <= max_errors && a.pass_qc{
             good_alignments.push(a);
         }
     }
