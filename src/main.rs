@@ -19,11 +19,11 @@ use std::collections::HashMap;
 use std::time::Instant;
 use std::fs::File;
 use std::io::prelude::*;
-use clap::{AppSettings, Clap, crate_version};
+use clap::{Parser, crate_version};
 use num_format::{Locale, ToFormattedString};
 
 
-#[derive(Clap)]
+#[derive(Parser)]
 #[clap(name = "Polypolish",
        version = concat!("v", crate_version!()),
        about = "short-read polishing of long-read assemblies\ngithub.com/rrwick/Polypolish",
@@ -35,7 +35,6 @@ use num_format::{Locale, ToFormattedString};
                              r#" |_|    \___/ |_| \__, || .__/  \___/ |_||_||___/|_| |_|"#, "\n",
                              r#"                   __/ || |                             "#, "\n",
                              r#"                  |___/ |_|                             "#))]
-#[clap(setting = AppSettings::ColoredHelp)]
 struct Opts {
     /// Optional file to store per-base information for debugging purposes
     #[clap(long = "debug")]
