@@ -146,6 +146,8 @@ def get_insert_size_thresholds(alignments, correct_orientation, low_percentile, 
         if not name_1.endswith('_1'):
             continue
         name_2 = name_1[:-2] + '_2'
+        if name_2 not in alignments:
+            continue
         alignments_2 = alignments[name_2]
         if len(alignments_1) == 1 and len(alignments_2) == 1:
             a_1, a_2 = alignments_1[0], alignments_2[0]
