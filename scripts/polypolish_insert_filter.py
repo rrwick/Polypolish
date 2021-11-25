@@ -4,8 +4,8 @@
 import argparse
 import collections
 import datetime
+import math
 import os
-import pathlib
 import re
 import shutil
 import subprocess
@@ -19,11 +19,11 @@ def main():
     args = parse_args()
     check_inputs(args)
     start_time = starting_message(args)
-
     alignments, before_count = load_alignments(args.in1, args.in2)
-    distribution = get_insert_size_distribution(alignments, args.orientation)
-
-    after_count = 0  # TEMP
+    low, high, correct_orientation = get_insert_size_thresholds(alignments, args.orientation,
+                                                                args.low, args.high)
+    after_count = filter_sams(args.in1, args.in2, args.out1, args.out2, alignments, low, high,
+                              correct_orientation)
     finished_message(start_time, before_count, after_count)
 
 
@@ -49,6 +49,10 @@ def parse_args():
     setting_args.add_argument('--orientation', choices=['FR', 'RF', 'FF', 'RR', 'auto'],
                               default='auto',
                               help='Expected pair orientation (default: determine automatically)')
+    setting_args.add_argument('--low', type=float, default=0.1,
+                              help='Low percentile threshold')
+    setting_args.add_argument('--high', type=float, default=99.9,
+                              help='High percentile threshold')
 
     help_args = parser.add_argument_group('Help')
     help_args.add_argument('-h', '--help', action='help', default=argparse.SUPPRESS,
@@ -66,8 +70,10 @@ def parse_args():
 
 
 def check_inputs(args):
-    pass
-    # TODO: make sure that none of the required inputs are the same
+    files = set([args.in1, args.in2, args.out1, args.out2])
+    if len(files) != 4:
+        quit_with_error('Error: all required options (--in1, --in2, --out1, --out2) must have '
+                        'unique values')
 
 
 def starting_message(args):
@@ -76,7 +82,6 @@ def starting_message(args):
                 'they are used in Polypolish. It looks at each read pair and discards alignments '
                 'that do not seem to be part of a concordant pair. This serves to reduce the '
                 'number of alignments (especially near the edges of repeats), making ')
-
     log('Input alignments:')
     log(f'  {args.in1}')
     log(f'  {args.in2}')
@@ -87,6 +92,8 @@ def starting_message(args):
     log()
     log('Settings:')
     log(f'  --orientation {args.orientation}')
+    log(f'  --low {args.low}')
+    log(f'  --high {args.high}')
     log()
     check_python_version()
     return datetime.datetime.now()
@@ -94,8 +101,9 @@ def starting_message(args):
 
 def finished_message(start_time, before_count, after_count):
     section_header('Finished!')
-    log(f'Alignments before filtering: {before_count}')
-    log(f'Alignments after filtering:  {after_count}')
+    log(f'Alignments before filtering: {before_count:,}')
+    log(f'Alignments after filtering:  {after_count:,}')
+    log()
     time_to_run = datetime.datetime.now() - start_time
     log(f'Time to run: {time_to_run}')
     log()
@@ -129,7 +137,7 @@ def load_alignments_one_file(sam_filename, alignments, read_name_suffix):
     return alignments
 
 
-def get_insert_size_distribution(alignments, correct_orientation):
+def get_insert_size_thresholds(alignments, correct_orientation, low_percentile, high_percentile):
     section_header('Finding insert size distribution')
     explanation('Read pairs with exactly one alignment per read are used to determine the '
                 'orientation and insert size distribution for the read set.')
@@ -142,13 +150,42 @@ def get_insert_size_distribution(alignments, correct_orientation):
         if len(alignments_1) == 1 and len(alignments_2) == 1:
             a_1, a_2 = alignments_1[0], alignments_2[0]
             if a_1.ref_name == a_2.ref_name:
-                orientation = get_orientation(a_1, a_2)
-                insert_size = get_insert_size(a_1, a_2)
+                orientation, insert_size = get_orientation(a_1, a_2), get_insert_size(a_1, a_2)
                 insert_sizes[orientation].append(insert_size)
+    for orientation in ['FR', 'RF', 'FF', 'RR']:
+        count = len(insert_sizes[orientation])
+        log(f'{orientation}: {count} pairs')
     if correct_orientation == 'auto':
         correct_orientation = auto_determine_orientation(insert_sizes)
+        log(f'\nAutomatically determined correct orientation: {correct_orientation}\n')
+    else:
+        log(f'\nUser-specified correct orientation: {correct_orientation}\n')
 
-    return distribution
+    insert_sizes = sorted(insert_sizes[correct_orientation])
+    if len(insert_sizes) == 0:
+        quit_with_error('Error: no read pairs available to determine insert size distribution')
+
+    low_threshold = get_percentile(insert_sizes, low_percentile)
+    high_threshold = get_percentile(insert_sizes, high_percentile)
+    log(f'Low threshold:  {low_threshold} ({get_percentile_name(low_percentile)})')
+    log(f'High threshold: {high_threshold} ({get_percentile_name(high_percentile)})')
+    log()
+    return low_threshold, high_threshold, correct_orientation
+
+
+def get_percentile_name(p):
+    """
+    Returns a nice string for a percentile number. E.g. 1 -> '1st percentile'
+    """
+    p_str = str(p)
+    if p_str.endswith('1'):
+        return f'{p}st percentile'
+    elif p_str.endswith('2'):
+        return f'{p}nd percentile'
+    elif p_str.endswith('3'):
+        return f'{p}rd percentile'
+    else:
+        return f'{p}th percentile'
 
 
 def get_orientation(alignment_1, alignment_2):
@@ -174,17 +211,14 @@ def get_orientation(alignment_1, alignment_2):
 
 
 def auto_determine_orientation(insert_sizes):
-    log('Automatically determining read orientation:')
     max_count = max(len(i) for i in insert_sizes.values())
     orientations = []
     for orientation in ['FR', 'RF', 'FF', 'RR']:
         count = len(insert_sizes[orientation])
-        log(f'  {orientation}: {count} pairs')
         if count == max_count:
             orientations.append(orientation)
     if len(orientations) == 1:
         correct_orientation = orientations[0]
-        log(f'  Correct orientation: {correct_orientation}')
         return correct_orientation
     quit_with_error('\nError: could not automatically determine read pair orientation')
 
@@ -195,6 +229,73 @@ def get_insert_size(alignment_1, alignment_2):
     insert_end = max(alignment_1.ref_start, alignment_1.ref_end,
                      alignment_2.ref_start, alignment_2.ref_end)
     return insert_end - insert_start
+
+
+def filter_sams(in1, in2, out1, out2, alignments, low, high, correct_orientation):
+    section_header('Filtering SAM files')
+    explanation('Read alignments that are part of a good pair (correct orientation and insert '
+                'size) pass the filter and are written unaltered to the output file. Read '
+                'alignments which are not part of good pair are written to the output file with '
+                'a "ZP:Z:fail" tag so Polypolish will not use them.')
+    after_count = 0
+    after_count += filter_sam(in1, out1, alignments, low, high, correct_orientation, 1)
+    after_count += filter_sam(in2, out2, alignments, low, high, correct_orientation, 2)
+    return after_count
+
+
+def filter_sam(in_filename, out_filename, alignments, low, high, correct_orientation, read_num):
+    log(f'Filtering {in_filename}')
+    pass_count, fail_count = 0, 0
+    with open(in_filename, 'rt') as in_file:
+        with open(out_filename, 'wt') as out_file:
+            for line in in_file:
+                if line.startswith('@'):  # header line
+                    out_file.write(line)
+                    continue
+                a = Alignment(line)
+                if read_num == 1:
+                    this_name, pair_name = a.read_name + '_1', a.read_name + '_2'
+                else:
+                    this_name, pair_name = a.read_name + '_2', a.read_name + '_1'
+                this_alignments, pair_alignments = alignments[this_name], alignments[pair_name]
+                pass_qc = alignment_pass_qc(a, this_alignments, pair_alignments, low, high,
+                                            correct_orientation)
+                if pass_qc:
+                    out_file.write(line)
+                    pass_count += 1
+                else:
+                    parts = line.strip().split('\t')
+                    parts.append('ZP:Z:fail')
+                    out_file.write('\t'.join(parts))
+                    out_file.write('\n')
+                    fail_count += 1
+    log(f'  {pass_count:,} pass')
+    log(f'  {fail_count:,} fail')
+    log()
+    return pass_count
+
+
+def alignment_pass_qc(a, this_alignments, pair_alignments, low, high, correct_orientation):
+    """
+    Rules for whether an alignment passes or fails filtering:
+    * If there are no pair alignments, it passes. I.e. if we can't use read pairs to assess the
+      alignment, we keep it.
+    * If there is exactly one alignment for this read, it passes. I.e. we're not going to throw out
+      the only alignment for a read.
+    * If there are multiple alignments for this read and at least one pair alignment, then the
+      alignment passes if it makes a good pair (good insert size and correct orientation) with any
+      of the pair alignments.
+    """
+    if len(pair_alignments) == 0:
+        return True
+    if len(this_alignments) == 1:
+        return True
+    for pair_alignment in pair_alignments:
+        insert_size = get_insert_size(a, pair_alignment)
+        orientation = get_orientation(a, pair_alignment)
+        if low <= insert_size <= high and orientation == correct_orientation:
+            return True
+    return False
 
 
 class Alignment(object):
@@ -212,7 +313,7 @@ class Alignment(object):
         self.ref_end = get_ref_end(self.ref_start, cigar)
 
     def __repr__(self):
-        return f'{self.read_name}:{self.ref_name}:{self.ref_start}-{self.ref_end}:{self.mismatches}'
+        return f'{self.read_name}:{self.ref_name}:{self.ref_start}-{self.ref_end}'
 
     def is_aligned(self):
         return not self.has_flag(4)
@@ -488,8 +589,28 @@ def check_python_version():
         sys.exit('\nError: polypolish_insert_filter.py requires Python 3.6 or later')
 
 
+def get_percentile(sorted_list, percentile):
+    """
+    Returns a percentile of a list of numbers. Assumes the list has already been sorted.
+    Implements the nearest rank method:
+    https://en.wikipedia.org/wiki/Percentile#The_Nearest_Rank_method
+    """
+    if not sorted_list:
+        return 0.0
+    fraction = percentile / 100.0
+    rank = int(math.ceil(fraction * len(sorted_list)))
+    if rank == 0:
+        return sorted_list[0]
+    return sorted_list[rank - 1]
+
+
 if __name__ == '__main__':
     main()
+
+
+
+
+
 
 
 # Unit tests with Pytest
@@ -589,3 +710,18 @@ def test_auto_determine_orientation_3():
 def test_auto_determine_orientation_4():
     insert_sizes = {'FR': [100], 'RF': [200], 'FF': [300], 'RR': [400, 400, 400]}
     assert auto_determine_orientation(insert_sizes) == 'RR'
+
+
+def test_get_percentile_name():
+    assert get_percentile_name(1) == '1st percentile'
+    assert get_percentile_name(2) == '2nd percentile'
+    assert get_percentile_name(3) == '3rd percentile'
+    assert get_percentile_name(4) == '4th percentile'
+    assert get_percentile_name(5) == '5th percentile'
+    assert get_percentile_name(6) == '6th percentile'
+    assert get_percentile_name(7) == '7th percentile'
+    assert get_percentile_name(8) == '8th percentile'
+    assert get_percentile_name(9) == '9th percentile'
+    assert get_percentile_name(10) == '10th percentile'
+    assert get_percentile_name(0.1) == '0.1st percentile'
+    assert get_percentile_name(99.9) == '99.9th percentile'
