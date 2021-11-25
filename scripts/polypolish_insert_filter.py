@@ -1,5 +1,16 @@
 #!/usr/bin/env python3
+"""
+This script performs insert-size-based filtering and can be run before Polypolish. Read more here:
+https://github.com/rrwick/Polypolish/wiki/Insert-size-filter
 
+This file is part of Polypolish. Polypolish is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by the Free Software Foundation,
+either version 3 of the License, or (at your option) any later version. Polypolish is distributed
+in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more
+details. You should have received a copy of the GNU General Public License along with Polypolish.
+If not, see <http://www.gnu.org/licenses/>.
+"""
 
 import argparse
 import collections
@@ -29,7 +40,7 @@ def main():
 
 def parse_args():
     description = 'R|' + get_ascii_art() + '\n' + \
-                  'Polypolish insert size alignment filter\n' + \
+                  'Polypolish insert size alignment filter v' + __version__ + '\n' + \
                   'github.com/rrwick/Polypolish'
     parser = MyParser(description=description, formatter_class=MyHelpFormatter, add_help=False)
 
@@ -46,8 +57,8 @@ def parse_args():
                              help='Output SAM file (first second in pairs)')
 
     setting_args = parser.add_argument_group('Settings')
-    setting_args.add_argument('--orientation', choices=['FR', 'RF', 'FF', 'RR', 'auto'],
-                              default='auto',
+    setting_args.add_argument('--orientation', choices=['fr', 'rf', 'ff', 'rr', 'auto'],
+                              default='auto', type=str.lower,
                               help='Expected pair orientation (default: determine automatically)')
     setting_args.add_argument('--low', type=float, default=0.1,
                               help='Low percentile threshold')
@@ -70,18 +81,22 @@ def parse_args():
 
 
 def check_inputs(args):
-    files = set([args.in1, args.in2, args.out1, args.out2])
+    files = {args.in1, args.in2, args.out1, args.out2}
     if len(files) != 4:
         quit_with_error('Error: all required options (--in1, --in2, --out1, --out2) must have '
                         'unique values')
+    if args.low <= 0 or args.low >= 50:
+        quit_with_error('Error: the value of --low must be greater than 0 and less than 50')
+    if args.high <= 50 or args.high >= 100:
+        quit_with_error('Error: the value of --high must be greater than 50 and less than 100')
 
 
 def starting_message(args):
     section_header('Polypolish insert size alignment filter')
     explanation('This script is a pre-processing filter that can be run on SAM alignments before '
-                'they are used in Polypolish. It looks at each read pair and discards alignments '
-                'that do not seem to be part of a concordant pair. This serves to reduce the '
-                'number of alignments (especially near the edges of repeats), making ')
+                'they are used in Polypolish. It looks at each read pair and flags alignments '
+                'that do not seem to be part of a concordant pair. This can improve the accuracy '
+                'of Polypolish, especially near the edges of repeats.')
     log('Input alignments:')
     log(f'  {args.in1}')
     log(f'  {args.in2}')
@@ -138,10 +153,10 @@ def load_alignments_one_file(sam_filename, alignments, read_name_suffix):
 
 
 def get_insert_size_thresholds(alignments, correct_orientation, low_percentile, high_percentile):
-    section_header('Finding insert size distribution')
+    section_header('Finding insert size thresholds')
     explanation('Read pairs with exactly one alignment per read are used to determine the '
-                'orientation and insert size distribution for the read set.')
-    insert_sizes = {'FR': [], 'RF': [], 'FF': [], 'RR': []}
+                'orientation and insert size thresholds for the read set.')
+    insert_sizes = {'fr': [], 'rf': [], 'ff': [], 'rr': []}
     for name_1, alignments_1 in alignments.items():
         if not name_1.endswith('_1'):
             continue
@@ -154,7 +169,7 @@ def get_insert_size_thresholds(alignments, correct_orientation, low_percentile, 
             if a_1.ref_name == a_2.ref_name:
                 orientation, insert_size = get_orientation(a_1, a_2), get_insert_size(a_1, a_2)
                 insert_sizes[orientation].append(insert_size)
-    for orientation in ['FR', 'RF', 'FF', 'RR']:
+    for orientation in ['fr', 'rf', 'ff', 'rr']:
         count = len(insert_sizes[orientation])
         log(f'{orientation}: {count} pairs')
     if correct_orientation == 'auto':
@@ -165,7 +180,7 @@ def get_insert_size_thresholds(alignments, correct_orientation, low_percentile, 
 
     insert_sizes = sorted(insert_sizes[correct_orientation])
     if len(insert_sizes) == 0:
-        quit_with_error('Error: no read pairs available to determine insert size distribution')
+        quit_with_error('Error: no read pairs available to determine insert size thresholds')
 
     low_threshold = get_percentile(insert_sizes, low_percentile)
     high_threshold = get_percentile(insert_sizes, high_percentile)
@@ -191,23 +206,23 @@ def get_percentile_name(p):
 
 
 def get_orientation(alignment_1, alignment_2):
-    strand_1 = 'F' if alignment_1.is_on_forward_strand() else 'R'
-    strand_2 = 'F' if alignment_2.is_on_forward_strand() else 'R'
+    strand_1 = 'f' if alignment_1.is_on_forward_strand() else 'r'
+    strand_2 = 'f' if alignment_2.is_on_forward_strand() else 'r'
     if strand_1 != strand_2:  # on different strands
         if alignment_1.ref_start < alignment_2.ref_start:
             return strand_1 + strand_2
         else:
             return strand_2 + strand_1
-    elif strand_1 == 'F':  # both on forward strand
+    elif strand_1 == 'f':  # both on forward strand
         if alignment_1.ref_start < alignment_2.ref_start:
-            return 'FF'
+            return 'ff'
         else:
-            return 'RR'
-    elif strand_1 == 'R':  # both on reverse strand
+            return 'rr'
+    elif strand_1 == 'r':  # both on reverse strand
         if alignment_2.ref_start < alignment_1.ref_start:
-            return 'FF'
+            return 'ff'
         else:
-            return 'RR'
+            return 'rr'
     else:
         assert False
 
@@ -215,14 +230,14 @@ def get_orientation(alignment_1, alignment_2):
 def auto_determine_orientation(insert_sizes):
     max_count = max(len(i) for i in insert_sizes.values())
     orientations = []
-    for orientation in ['FR', 'RF', 'FF', 'RR']:
+    for orientation in ['fr', 'rf', 'ff', 'rr']:
         count = len(insert_sizes[orientation])
         if count == max_count:
             orientations.append(orientation)
     if len(orientations) == 1:
         correct_orientation = orientations[0]
         return correct_orientation
-    quit_with_error('\nError: could not automatically determine read pair orientation')
+    quit_with_error('Error: could not automatically determine read pair orientation')
 
 
 def get_insert_size(alignment_1, alignment_2):
@@ -246,7 +261,7 @@ def filter_sams(in1, in2, out1, out2, alignments, low, high, correct_orientation
 
 
 def filter_sam(in_filename, out_filename, alignments, low, high, correct_orientation, read_num):
-    log(f'Filtering {in_filename}')
+    log(f'Filtering {in_filename}:')
     pass_count, fail_count = 0, 0
     with open(in_filename, 'rt') as in_file:
         with open(out_filename, 'wt') as out_file:
@@ -305,7 +320,7 @@ class Alignment(object):
     def __init__(self, sam_line):
         parts = sam_line.strip().split('\t')
         if len(parts) < 11:
-            quit_with_error('\nError: alignment file does not seem to be in SAM format')
+            quit_with_error('Error: alignment file does not seem to be in SAM format')
 
         self.read_name = parts[0]
         self.sam_flags = int(parts[1])
@@ -320,19 +335,11 @@ class Alignment(object):
     def is_aligned(self):
         return not self.has_flag(4)
 
-    def is_secondary(self):
-        return self.has_flag(256)
-
     def is_on_forward_strand(self):
         return not self.has_flag(16)
 
     def has_flag(self, flag):
         return bool(self.sam_flags & flag)
-
-    def starts_and_ends_with_match(self):
-        cigar_parts = re.findall(r'\d+[MIDNSHP=X]', self.cigar)
-        first_part, last_part = cigar_parts[0], cigar_parts[-1]
-        return first_part[-1] == 'M' and last_part[-1] == 'M'
 
 
 def get_ref_end(ref_start, cigar):
@@ -519,19 +526,8 @@ def section_header(text):
 END_FORMATTING = '\033[0m'
 BOLD = '\033[1m'
 UNDERLINE = '\033[4m'
-RED = '\033[31m'
-GREEN = '\033[32m'
-MAGENTA = '\033[35m'
 YELLOW = '\033[93m'
 DIM = '\033[2m'
-
-
-def bold(text):
-    return BOLD + text + END_FORMATTING
-
-
-def bold_yellow(text):
-    return YELLOW + BOLD + text + END_FORMATTING
 
 
 def bold_yellow_underline(text):
@@ -540,18 +536,6 @@ def bold_yellow_underline(text):
 
 def dim(text):
     return DIM + text + END_FORMATTING
-
-
-def green(text):
-    return GREEN + text + END_FORMATTING
-
-
-def red(text):
-    return RED + text + END_FORMATTING
-
-
-def bold_red(text):
-    return RED + BOLD + text + END_FORMATTING
 
 
 def explanation(text, indent_size=4):
@@ -610,13 +594,8 @@ if __name__ == '__main__':
     main()
 
 
-
-
-
-
-
-# Unit tests with Pytest
-# ======================
+# Unit tests for Pytest
+# =====================
 
 def test_get_orientation_1():
     # 1------>
@@ -625,7 +604,7 @@ def test_get_orientation_1():
     strand_1, strand_2 = 0, 16
     a_1 = Alignment(f'read_1\t{strand_1}\tref\t{pos_1}\t60\t150M\t*\t0\t0\tACTG\tKKKK')
     a_2 = Alignment(f'read_2\t{strand_2}\tref\t{pos_2}\t60\t150M\t*\t0\t0\tACTG\tKKKK')
-    assert get_orientation(a_1, a_2) == 'FR'
+    assert get_orientation(a_1, a_2) == 'fr'
 
 
 def test_get_orientation_2():
@@ -635,7 +614,7 @@ def test_get_orientation_2():
     strand_1, strand_2 = 16, 0
     a_1 = Alignment(f'read_1\t{strand_1}\tref\t{pos_1}\t60\t150M\t*\t0\t0\tACTG\tKKKK')
     a_2 = Alignment(f'read_2\t{strand_2}\tref\t{pos_2}\t60\t150M\t*\t0\t0\tACTG\tKKKK')
-    assert get_orientation(a_1, a_2) == 'FR'
+    assert get_orientation(a_1, a_2) == 'fr'
 
 
 def test_get_orientation_3():
@@ -645,7 +624,7 @@ def test_get_orientation_3():
     strand_1, strand_2 = 0, 16
     a_1 = Alignment(f'read_1\t{strand_1}\tref\t{pos_1}\t60\t150M\t*\t0\t0\tACTG\tKKKK')
     a_2 = Alignment(f'read_2\t{strand_2}\tref\t{pos_2}\t60\t150M\t*\t0\t0\tACTG\tKKKK')
-    assert get_orientation(a_1, a_2) == 'RF'
+    assert get_orientation(a_1, a_2) == 'rf'
 
 
 def test_get_orientation_4():
@@ -655,7 +634,7 @@ def test_get_orientation_4():
     strand_1, strand_2 = 16, 0
     a_1 = Alignment(f'read_1\t{strand_1}\tref\t{pos_1}\t60\t150M\t*\t0\t0\tACTG\tKKKK')
     a_2 = Alignment(f'read_2\t{strand_2}\tref\t{pos_2}\t60\t150M\t*\t0\t0\tACTG\tKKKK')
-    assert get_orientation(a_1, a_2) == 'RF'
+    assert get_orientation(a_1, a_2) == 'rf'
 
 
 def test_get_orientation_5():
@@ -664,7 +643,7 @@ def test_get_orientation_5():
     strand_1, strand_2 = 0, 0
     a_1 = Alignment(f'read_1\t{strand_1}\tref\t{pos_1}\t60\t150M\t*\t0\t0\tACTG\tKKKK')
     a_2 = Alignment(f'read_2\t{strand_2}\tref\t{pos_2}\t60\t150M\t*\t0\t0\tACTG\tKKKK')
-    assert get_orientation(a_1, a_2) == 'FF'
+    assert get_orientation(a_1, a_2) == 'ff'
 
 
 def test_get_orientation_6():
@@ -673,7 +652,7 @@ def test_get_orientation_6():
     strand_1, strand_2 = 16, 16
     a_1 = Alignment(f'read_1\t{strand_1}\tref\t{pos_1}\t60\t150M\t*\t0\t0\tACTG\tKKKK')
     a_2 = Alignment(f'read_2\t{strand_2}\tref\t{pos_2}\t60\t150M\t*\t0\t0\tACTG\tKKKK')
-    assert get_orientation(a_1, a_2) == 'FF'
+    assert get_orientation(a_1, a_2) == 'ff'
 
 
 def test_get_orientation_7():
@@ -682,7 +661,7 @@ def test_get_orientation_7():
     strand_1, strand_2 = 0, 0
     a_1 = Alignment(f'read_1\t{strand_1}\tref\t{pos_1}\t60\t150M\t*\t0\t0\tACTG\tKKKK')
     a_2 = Alignment(f'read_2\t{strand_2}\tref\t{pos_2}\t60\t150M\t*\t0\t0\tACTG\tKKKK')
-    assert get_orientation(a_1, a_2) == 'RR'
+    assert get_orientation(a_1, a_2) == 'rr'
 
 
 def test_get_orientation_8():
@@ -691,27 +670,27 @@ def test_get_orientation_8():
     strand_1, strand_2 = 16, 16
     a_1 = Alignment(f'read_1\t{strand_1}\tref\t{pos_1}\t60\t150M\t*\t0\t0\tACTG\tKKKK')
     a_2 = Alignment(f'read_2\t{strand_2}\tref\t{pos_2}\t60\t150M\t*\t0\t0\tACTG\tKKKK')
-    assert get_orientation(a_1, a_2) == 'RR'
+    assert get_orientation(a_1, a_2) == 'rr'
 
 
-def test_auto_determine_orientation_1():
-    insert_sizes = {'FR': [100, 100, 100], 'RF': [200], 'FF': [300], 'RR': [400]}
-    assert auto_determine_orientation(insert_sizes) == 'FR'
+def test_auto_determine_orientation():
+    insert_sizes = {'fr': [100, 100, 100], 'rf': [200], 'ff': [300], 'rr': [400]}
+    assert auto_determine_orientation(insert_sizes) == 'fr'
 
 
 def test_auto_determine_orientation_2():
-    insert_sizes = {'FR': [100], 'RF': [200, 200, 200], 'FF': [300], 'RR': [400]}
-    assert auto_determine_orientation(insert_sizes) == 'RF'
+    insert_sizes = {'fr': [100], 'rf': [200, 200, 200], 'ff': [300], 'rr': [400]}
+    assert auto_determine_orientation(insert_sizes) == 'rf'
 
 
 def test_auto_determine_orientation_3():
-    insert_sizes = {'FR': [100], 'RF': [200], 'FF': [300, 300, 300], 'RR': [400]}
-    assert auto_determine_orientation(insert_sizes) == 'FF'
+    insert_sizes = {'fr': [100], 'rf': [200], 'ff': [300, 300, 300], 'rr': [400]}
+    assert auto_determine_orientation(insert_sizes) == 'ff'
 
 
 def test_auto_determine_orientation_4():
-    insert_sizes = {'FR': [100], 'RF': [200], 'FF': [300], 'RR': [400, 400, 400]}
-    assert auto_determine_orientation(insert_sizes) == 'RR'
+    insert_sizes = {'fr': [100], 'rf': [200], 'ff': [300], 'rr': [400, 400, 400]}
+    assert auto_determine_orientation(insert_sizes) == 'rr'
 
 
 def test_get_percentile_name():
