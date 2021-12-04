@@ -69,6 +69,13 @@ impl Alignment {
         if mismatches == u32::MAX && sam_flags & 4 == 0 {
             return Err("missing NM tag");
         }
+        let expanded_cigar_result = get_expanded_cigar(&cigar, read_seq.len());
+        match expanded_cigar_result {
+            Ok(_)  => (),
+            Err(_) => quit_with_error(&format!("encountered an invalid CIGAR string for read {}: \
+                                                {:?}", read_name, cigar)),
+        };
+        let expanded_cigar = expanded_cigar_result.unwrap();
 
         Ok(Alignment {
             read_name: read_name.to_string(),
@@ -76,7 +83,7 @@ impl Alignment {
             sam_flags: sam_flags,
             ref_start: ref_start,
             cigar: cigar.to_string(),
-            expanded_cigar: get_expanded_cigar(&cigar, read_seq.len()),
+            expanded_cigar: expanded_cigar,
             read_seq: read_seq.to_ascii_uppercase(),
             mismatches: mismatches,
             pass_qc: pass_qc,
@@ -131,8 +138,11 @@ impl Alignment {
             } else if c == 'D' {
                 read_bases.push((i, i));
             } else {
-                quit_with_error(&format!("unexpected character in CIGAR string for read {}: {:?}",
-                                         self.read_name, self.cigar));
+                // Since non-end-to-end alignments have already been filtered out, the only CIGAR
+                // operations we should encounter here are M, I and D.
+                quit_with_error(&format!("unexpected character (other than M, I or D) in CIGAR \
+                                          string for read {}: {:?} - did you use BWA MEM to \
+                                          generate your alignments?", self.read_name, self.cigar));
             }
         }
         if i != self.read_seq.len() {
@@ -253,16 +263,24 @@ fn get_read_seq_from_alignments(alignments: &Vec<Alignment>) -> (String, i8) {
 }
 
 
-fn get_expanded_cigar(cigar: &str, read_seq_len: usize) -> String {
+fn get_expanded_cigar(cigar: &str, read_seq_len: usize) -> Result<String, ()> {
     let mut expanded_cigar = String::with_capacity(read_seq_len);
+    let mut total_len = 0;
     for m in RE.find_iter(cigar) {
         let num: u32 = cigar[m.start()..m.end()-1].parse().unwrap();
         let letter = &cigar[m.end()-1..m.end()];
         for _ in 0..num {
             expanded_cigar.push_str(letter);
         }
+        total_len += m.end() - m.start();
     }
-    expanded_cigar
+    // As a sanity check, we make sure that the total length of the regex-extracted pieces matches
+    // the length of the original CIGAR string. If not, that means part of the CIGAR wasn't grabbed
+    // by the regex, and therefore the CIGAR isn't valid.
+    if cigar.len() != total_len {
+        return Err(());
+    }
+    Ok(expanded_cigar)
 }
 
 
@@ -303,9 +321,16 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_get_expanded_cigar() {
-        assert_eq!(get_expanded_cigar("10M", 10), "MMMMMMMMMM");
-        assert_eq!(get_expanded_cigar("3M1I7M", 11), "MMMIMMMMMMM");
-        assert_eq!(get_expanded_cigar("5M2D4M", 9), "MMMMMDDMMMM");
+    fn test_get_expanded_cigar_good() {
+        assert_eq!(get_expanded_cigar("10M", 10).unwrap(), "MMMMMMMMMM");
+        assert_eq!(get_expanded_cigar("3M1I7M", 11).unwrap(), "MMMIMMMMMMM");
+        assert_eq!(get_expanded_cigar("5M2D4M", 9).unwrap(), "MMMMMDDMMMM");
+    }
+
+    #[test]
+    fn test_get_expanded_cigar_bad() {
+        assert!(get_expanded_cigar("10Q", 10).is_err());        // 'Q' isn't a CIGAR operator
+        assert!(get_expanded_cigar("10MM1I10M", 11).is_err());  // can't have consecutive letters
+        assert!(get_expanded_cigar("100M5", 9).is_err());       // can't end on a number
     }
 }
