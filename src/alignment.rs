@@ -264,6 +264,9 @@ fn get_read_seq_from_alignments(alignments: &Vec<Alignment>) -> (String, i8) {
 
 
 fn get_expanded_cigar(cigar: &str, read_seq_len: usize) -> Result<String, ()> {
+    if cigar == "*" {
+        return Ok("".to_string());
+    }
     let mut expanded_cigar = String::with_capacity(read_seq_len);
     let mut total_len = 0;
     for m in RE.find_iter(cigar) {
@@ -325,6 +328,7 @@ mod tests {
         assert_eq!(get_expanded_cigar("10M", 10).unwrap(), "MMMMMMMMMM");
         assert_eq!(get_expanded_cigar("3M1I7M", 11).unwrap(), "MMMIMMMMMMM");
         assert_eq!(get_expanded_cigar("5M2D4M", 9).unwrap(), "MMMMMDDMMMM");
+        assert_eq!(get_expanded_cigar("*", 1).unwrap(), "");
     }
 
     #[test]
