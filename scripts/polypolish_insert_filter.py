@@ -270,6 +270,9 @@ def filter_sam(in_filename, out_filename, alignments, low, high, correct_orienta
                     out_file.write(line)
                     continue
                 a = Alignment(line)
+                if not a.is_aligned():
+                    out_file.write(line)
+                    continue
                 if read_num == 1:
                     this_name, pair_name = a.read_name + '_1', a.read_name + '_2'
                 else:
