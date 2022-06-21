@@ -94,6 +94,8 @@ def starting_message(args):
     log()
     log('Settings:')
     log(f'  --padding {args.padding}')
+    log(f'  --merge {args.merge}')
+    log(f'  --aligner {args.aligner}')
     log()
     return datetime.datetime.now()
 
