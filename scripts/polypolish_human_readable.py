@@ -75,10 +75,11 @@ def parse_args():
 def check_inputs(args):
     check_python_version()
     if not pathlib.Path(args.before).is_file():
-        quit_with_error(f'Error: all required options (--in1, --in2, --out1, --out2) must have '
-                        'unique values')
-    if args.padding <= 0 or args.padding >= 100:
-        quit_with_error('Error: the value of --low must be greater than 0 and less than 100')
+        quit_with_error(f'Error: {args.before} is not a file')
+    if not pathlib.Path(args.after).is_file():
+        quit_with_error(f'Error: {args.after} is not a file')
+    if args.padding <= 0 or args.padding >= 1000:
+        quit_with_error('Error: the value of --padding must be greater than 0 and less than 1000')
 
 
 def starting_message(args):
@@ -273,7 +274,7 @@ def get_cigar(before_seq, after_seq, aligner):
 
 
 def get_cigar_with_mappy(before_seq, after_seq):
-    a = mappy.Aligner(seq=after_seq, preset='asm20')
+    a = mappy.Aligner(seq=after_seq, preset='map-ont')
     for result in a.map(before_seq):
         full_length_query = (result.q_st == 0 and result.q_en == len(before_seq))
         full_length_ref = (result.r_st == 0 and result.r_en == len(after_seq))
