@@ -1,7 +1,14 @@
 #!/usr/bin/env python3
 """
-This script produces a human-readable file showing the changes that Polypolish has made to an
-assembly. It can assist in spotting troublesome regions of the genome.
+This script produces a human-readable output showing the differences between two alternative
+assemblies of a genome. The two genomes must have the same number of contigs, must be in the same
+order, and corresponding contigs must have the same strand and starting position.
+
+It can be run like this to view the results directly in the terminal:
+  polypolish_human_readable.py assembly_1.fasta assembly_2.fasta
+
+Or you can store the results in a file like this:
+  polypolish_human_readable.py assembly_1.fasta assembly_2.fasta > differences_1_vs_2.txt
 
 This file is part of Polypolish. Polypolish is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by the Free Software Foundation,
@@ -153,11 +160,16 @@ def output_differences(before_name, before_seq, after_name, after_seq, padding, 
     log(f'Aligning {before_name} to {after_name}:')
     before_aligned, after_aligned, differences, before_pos, after_pos, diff_pos = \
         get_aligned_seqs(before_seq, after_seq, aligner)
-    log(f'  {len(diff_pos):,} differences')
+    if len(diff_pos) == 1:
+        log(f'  1 difference')
+    else:
+        log(f'  {len(diff_pos):,} differences')
+    log()
 
     aligned_len = len(before_aligned)
     diff_ranges = make_diff_ranges(diff_pos, padding, merge, aligned_len)
 
+    first = True
     for start, end in diff_ranges:
         # Convert positions in alignment to positions in unaligned sequences:
         before_start, before_end = before_pos[start], before_pos[end]
@@ -175,10 +187,12 @@ def output_differences(before_name, before_seq, after_name, after_seq, padding, 
         before_label = before_label.rjust(longest_label)
         after_label = after_label.rjust(longest_label)
 
-        print(f'{before_label}', before_aligned[start:end])
-        print(f'{after_label}', after_aligned[start:end])
-        print(' ' * longest_label, differences[start:end])
-        print()
+        if not first:
+            print(flush=True)
+        print(f'{before_label}', before_aligned[start:end], flush=True)
+        print(f'{after_label}', after_aligned[start:end], flush=True)
+        print(' ' * longest_label, differences[start:end], flush=True)
+        first = False
     log()
 
 
