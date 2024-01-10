@@ -1,6 +1,6 @@
 [package]
 name = "polypolish"
-version = "0.5.0"
+version = "0.6.0"
 authors = ["Ryan Wick <rrwick@gmail.com>"]
 edition = "2018"
 description = "short-read polishing of long-read assemblies"
