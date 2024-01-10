@@ -30,7 +30,7 @@ lazy_static! {
 
 #[derive(Debug)]
 pub struct Alignment {
-    read_name: String,
+    pub read_name: String,
     ref_name: String,
     sam_flags: u32,
     pub ref_start: usize,
@@ -42,7 +42,7 @@ pub struct Alignment {
 }
 
 impl Alignment {
-    fn new(sam_line: &str) -> Result<Alignment, &str> {
+    pub fn new(sam_line: &str) -> Result<Alignment, &str> {
         let parts = sam_line.split('\t').collect::<Vec<&str>>();
         if parts.len() < 11 {
             return Err("too few columns");
@@ -51,7 +51,10 @@ impl Alignment {
         let read_name = parts[0];
         let sam_flags = parts[1].parse::<u32>().unwrap();
         let ref_name = parts[2];
-        let ref_start = parts[3].parse::<usize>().unwrap() - 1;
+        let mut ref_start = parts[3].parse::<usize>().unwrap();
+        if ref_start > 0 {
+            ref_start -= 1;
+        }
         let cigar = parts[5];
         let read_seq = parts[9];
 
@@ -90,7 +93,7 @@ impl Alignment {
         })
     }
 
-    fn is_aligned(&self) -> bool {
+    pub fn is_aligned(&self) -> bool {
         (self.sam_flags & 4) == 0
     }
 
@@ -102,7 +105,20 @@ impl Alignment {
         }
     }
 
-    fn is_on_forward_strand(&self) -> bool {
+    pub fn get_ref_end(&self) -> usize {
+        let mut ref_end = self.ref_start;
+        for m in RE.find_iter(&self.cigar) {
+            let num: usize = self.cigar[m.start()..m.end()-1].parse().unwrap();
+            let letter = &self.cigar[m.end()-1..m.end()].chars().next().unwrap();
+            match letter {
+                'M' | 'D' | 'N' | '=' | 'X' => ref_end += num,
+                _ => {}
+            }
+        }
+        ref_end
+    }
+
+    pub fn is_on_forward_strand(&self) -> bool {
         (self.sam_flags & 16) == 0
     }
 

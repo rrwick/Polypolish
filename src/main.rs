@@ -70,7 +70,7 @@ enum Commands {
         low: f64,
 
         /// High percentile threshold
-        #[clap(long = "high", default_value = "0.1")]
+        #[clap(long = "high", default_value = "99.9")]
         high: f64,
     },
 

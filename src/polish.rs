@@ -40,7 +40,7 @@ pub fn polish(debug: Option<PathBuf>, fraction_invalid: f64, fraction_valid: f64
 
 fn starting_message(debug: &Option<PathBuf>, fraction_invalid: &f64, fraction_valid: &f64,
                     max_errors: &u32, min_depth: &u32, assembly: &PathBuf, sam: &Vec<PathBuf>) {
-    log::section_header("Starting Polypolish");
+    log::section_header("Starting Polypolish polish");
     log::explanation("Polypolish is a tool for polishing genome assemblies with short reads. \
                       Unlike other tools in this category, Polypolish uses SAM files where each \
                       read has been aligned to all possible locations (not just a single best \
