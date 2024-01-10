@@ -10,7 +10,7 @@ rust-version = "1.56"
 
 [dependencies]
 chrono = "0.4"
-clap = { version = "3.0", features = ["derive", "cargo", "wrap_help"] }
+clap = { version = "4.4", features = ["derive", "cargo", "wrap_help"] }
 colored = "2.0"
 flate2 = "1.0"
 lazy_static = "1.4.0"
