@@ -353,4 +353,27 @@ mod tests {
         assert!(get_expanded_cigar("10MM1I10M", 11).is_err());  // can't have consecutive letters
         assert!(get_expanded_cigar("100M5", 9).is_err());       // can't end on a number
     }
+
+    #[test]
+    fn test_get_ref_positions() {
+        let a_str = format!("r_1\t0\tx\t{}\t60\t4M\t*\t0\t0\tACTG\tKKKK\tNM:i:0", 1000);
+        let alignment = Alignment::new(&a_str).unwrap();
+        assert_eq!(alignment.ref_start, 999);
+        assert_eq!(alignment.get_ref_end(), 1003);
+
+        let a_str = format!("r_1\t0\tx\t{}\t60\t2=1X1=\t*\t0\t0\tACTG\tKKKK\tNM:i:0", 1000);
+        let alignment = Alignment::new(&a_str).unwrap();
+        assert_eq!(alignment.ref_start, 999);
+        assert_eq!(alignment.get_ref_end(), 1003);
+
+        let a_str = format!("r_1\t0\tx\t{}\t60\t2M1I1M\t*\t0\t0\tACTG\tKKKK\tNM:i:0", 1000);
+        let alignment = Alignment::new(&a_str).unwrap();
+        assert_eq!(alignment.ref_start, 999);
+        assert_eq!(alignment.get_ref_end(), 1002);
+
+        let a_str = format!("r_1\t0\tx\t{}\t60\t2M1D1M\t*\t0\t0\tACTG\tKKKK\tNM:i:0", 1000);
+        let alignment = Alignment::new(&a_str).unwrap();
+        assert_eq!(alignment.ref_start, 999);
+        assert_eq!(alignment.get_ref_end(), 1003);
+    }
 }

@@ -246,6 +246,9 @@ fn auto_determine_orientation(insert_sizes: &HashMap<String, Vec<u32>>) -> Strin
 
 
 fn get_percentile(sorted_list: &[u32], percentile: f64) -> u32 {
+    // Returns a percentile of a list of numbers. Assumes the list has already been sorted.
+    // Implements the nearest rank method:
+    // https://en.wikipedia.org/wiki/Percentile#The_nearest-rank_method
     if sorted_list.is_empty() {
         return 0;
     }
@@ -371,4 +374,104 @@ fn alignment_pass_qc(a: &Alignment, this_alignments: &[Alignment], pair_alignmen
         }
     }
     false
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn run_get_orientation_test(pos_1: i32, pos_2: i32,
+                                strand_1: i32, strand_2: i32, result: &str) {
+        let str_1 = format!("r_1\t{}\tx\t{}\t60\t150M\t*\t0\t0\tACTG\tKKKK\tNM:i:0", strand_1, pos_1);
+        let str_2 = format!("r_2\t{}\tx\t{}\t60\t150M\t*\t0\t0\tACTG\tKKKK\tNM:i:0", strand_2, pos_2);
+        let a_1 = Alignment::new(&str_1).unwrap();
+        let a_2 = Alignment::new(&str_2).unwrap();
+        assert_eq!(get_orientation(&a_1, &a_2), result);
+    }
+
+    #[test]
+    fn test_get_orientation() {
+        // 1------>
+        //            <------2
+        run_get_orientation_test(100000, 200000, 0, 16, "fr");
+
+        // 2------>
+        //            <------1
+        run_get_orientation_test(200000, 100000, 16, 0, "fr");
+
+        //            1------>
+        // <------2
+        run_get_orientation_test(200000, 100000, 0, 16, "rf");
+
+        // <------1
+        //            2------>
+        run_get_orientation_test(100000, 200000, 16, 0, "rf");
+
+        // 1------>   2------>
+        run_get_orientation_test(100000, 200000, 0, 0, "ff");
+
+        // <------2   <------1
+        run_get_orientation_test(200000, 100000, 16, 16, "ff");
+
+        // 2------>   1------>
+        run_get_orientation_test(200000, 100000, 0, 0, "rr");
+
+        // <------1   <------2
+        run_get_orientation_test(100000, 200000, 16, 16, "rr");
+    }
+
+    #[test]
+    fn test_auto_determine_orientation() {
+        let insert_sizes: HashMap<String, Vec<u32>> = [
+            ("fr", vec![100, 100, 100]), ("rf", vec![200]), ("ff", vec![300]), ("rr", vec![400])
+        ].iter().map(|&(k, ref v)| (k.to_string(), v.clone())).collect();
+        assert_eq!(auto_determine_orientation(&insert_sizes), "fr");
+
+        let insert_sizes: HashMap<String, Vec<u32>> = [
+            ("fr", vec![100]), ("rf", vec![200, 200, 200]), ("ff", vec![300]), ("rr", vec![400])
+        ].iter().map(|&(k, ref v)| (k.to_string(), v.clone())).collect();
+        assert_eq!(auto_determine_orientation(&insert_sizes), "rf");
+
+        let insert_sizes: HashMap<String, Vec<u32>> = [
+            ("fr", vec![100]), ("rf", vec![200]), ("ff", vec![300, 300, 300]), ("rr", vec![400])
+        ].iter().map(|&(k, ref v)| (k.to_string(), v.clone())).collect();
+        assert_eq!(auto_determine_orientation(&insert_sizes), "ff");
+
+        let insert_sizes: HashMap<String, Vec<u32>> = [
+            ("fr", vec![100]), ("rf", vec![200]), ("ff", vec![300]), ("rr", vec![400, 400, 400])
+        ].iter().map(|&(k, ref v)| (k.to_string(), v.clone())).collect();
+        assert_eq!(auto_determine_orientation(&insert_sizes), "rr");
+    }
+
+    #[test]
+    fn test_get_percentile() {
+        let nums: Vec<u32> = vec![15, 20, 35, 40, 50];
+        assert_eq!(get_percentile(&nums, 00.1), 15);
+        assert_eq!(get_percentile(&nums, 19.9), 15);
+        assert_eq!(get_percentile(&nums, 20.1), 20);
+        assert_eq!(get_percentile(&nums, 39.9), 20);
+        assert_eq!(get_percentile(&nums, 40.1), 35);
+        assert_eq!(get_percentile(&nums, 59.9), 35);
+        assert_eq!(get_percentile(&nums, 60.1), 40);
+        assert_eq!(get_percentile(&nums, 79.9), 40);
+        assert_eq!(get_percentile(&nums, 80.1), 50);
+        assert_eq!(get_percentile(&nums, 99.9), 50);
+    }
+
+    #[test]
+    fn test_get_percentile_name() {
+        assert_eq!(get_percentile_name(1.0), "1st percentile");
+        assert_eq!(get_percentile_name(2.0), "2nd percentile");
+        assert_eq!(get_percentile_name(3.0), "3rd percentile");
+        assert_eq!(get_percentile_name(4.0), "4th percentile");
+        assert_eq!(get_percentile_name(5.0), "5th percentile");
+        assert_eq!(get_percentile_name(6.0), "6th percentile");
+        assert_eq!(get_percentile_name(7.0), "7th percentile");
+        assert_eq!(get_percentile_name(8.0), "8th percentile");
+        assert_eq!(get_percentile_name(9.0), "9th percentile");
+        assert_eq!(get_percentile_name(10.0), "10th percentile");
+        assert_eq!(get_percentile_name(0.1), "0.1st percentile");
+        assert_eq!(get_percentile_name(99.9), "99.9th percentile");
+    }
 }
