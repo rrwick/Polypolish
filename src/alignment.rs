@@ -31,7 +31,7 @@ lazy_static! {
 #[derive(Debug)]
 pub struct Alignment {
     pub read_name: String,
-    ref_name: String,
+    pub ref_name: String,
     sam_flags: u32,
     pub ref_start: usize,
     cigar: String,

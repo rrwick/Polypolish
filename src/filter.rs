@@ -151,7 +151,7 @@ fn get_insert_size_thresholds(alignments: &HashMap<String, Vec<Alignment>>,
         }
         let name_2 = format!("{}_2", &name_1[..name_1.len() - 2]);
         if let Some(alignments_2) = alignments.get(&name_2) {
-            if alignments_2.len() == 1 {
+            if alignments_2.len() == 1 && alignments_1[0].ref_name == alignments_2[0].ref_name {
                 let orientation = get_orientation(&alignments_1[0], &alignments_2[0]);
                 let insert_size = get_insert_size(&alignments_1[0], &alignments_2[0]);
                 insert_sizes.entry(orientation).or_default().push(insert_size);
@@ -358,8 +358,8 @@ fn alignment_pass_qc(a: &Alignment, this_alignments: &[Alignment], pair_alignmen
     // * If there is exactly one alignment for this read, it passes. I.e. we're not going to throw
     //   out the only alignment for a read.
     // * If there are multiple alignments for this read and at least one pair alignment, then the
-    //   alignment passes if it makes a good pair (good insert size and correct orientation) with
-    //   any of the pair alignments.
+    //   alignment passes if it makes a good pair (same reference seq, good insert size and correct
+    //   orientation) with any of the pair alignments.
     if pair_alignments.is_empty() {
         return true;
     }
@@ -367,9 +367,10 @@ fn alignment_pass_qc(a: &Alignment, this_alignments: &[Alignment], pair_alignmen
         return true;
     }
     for pair_alignment in pair_alignments {
-        let insert_size = get_insert_size(a, pair_alignment);
+        let same_ref = a.ref_name == pair_alignment.ref_name;
+        let insert = get_insert_size(a, pair_alignment);
         let orientation = get_orientation(a, pair_alignment);
-        if *low <= insert_size && insert_size <= *high && orientation == correct_orientation {
+        if same_ref && *low <= insert && insert <= *high && orientation == correct_orientation {
             return true;
         }
     }
