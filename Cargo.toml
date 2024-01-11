@@ -6,15 +6,13 @@ edition = "2021"
 description = "short-read polishing of long-read assemblies"
 rust-version = "1.75"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
 chrono = "0.4"
 clap = { version = "4.4", features = ["derive", "cargo", "wrap_help"] }
 colored = "2.0"
 flate2 = "1.0"
-lazy_static = "1.4.0"
+lazy_static = "1.4"
 num-format = "0.4"
-regex = "1"
+regex = "1.10"
 term_size = "0.3"
-textwrap = "0.14"
+textwrap = "0.16"
