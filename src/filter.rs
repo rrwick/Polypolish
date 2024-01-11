@@ -87,6 +87,7 @@ fn finished_message(start_time: Instant, before_count: usize, after_count: usize
     eprintln!();
 }
 
+
 fn load_alignments(sam_1: &PathBuf, sam_2: &PathBuf) -> (HashMap<String, Vec<Alignment>>, usize) {
     log::section_header("Loading alignments");
     let mut alignments = HashMap::new();
@@ -106,7 +107,9 @@ fn load_alignments(sam_1: &PathBuf, sam_2: &PathBuf) -> (HashMap<String, Vec<Ali
 }
 
 
-fn load_alignments_one_file(sam_filename: &PathBuf, alignments: &mut HashMap<String, Vec<Alignment>>, read_name_suffix: &str) -> io::Result<()> {
+fn load_alignments_one_file(sam_filename: &PathBuf,
+                            alignments: &mut HashMap<String, Vec<Alignment>>,
+                            read_name_suffix: &str) -> io::Result<()> {
     eprint!("{}: ", sam_filename.display());
     let sam_file = File::open(sam_filename)?;
     let reader = BufReader::new(sam_file);
@@ -122,7 +125,8 @@ fn load_alignments_one_file(sam_filename: &PathBuf, alignments: &mut HashMap<Str
         let alignment_result = Alignment::new_quick(&sam_line);
         match alignment_result {
             Ok(_)  => (),
-            Err(e) => quit_with_error(&format!("{} in {:?} (line {})", e, sam_filename, line_count)),
+            Err(e) => quit_with_error(&format!("{} in {:?} (line {})",
+                                               e, sam_filename, line_count)),
         }
         let mut alignment = alignment_result.unwrap();
         if !alignment.is_aligned() {continue;}
@@ -214,7 +218,8 @@ fn get_insert_size(alignment_1: &Alignment, alignment_2: &Alignment) -> u32 {
 }
 
 
-fn determine_correct_orientation(correct_orientation: &str, insert_sizes: &HashMap<String, Vec<u32>>) -> String {
+fn determine_correct_orientation(correct_orientation: &str,
+                                 insert_sizes: &HashMap<String, Vec<u32>>) -> String {
     for orientation in ["fr", "rf", "ff", "rr"].iter() {
         let count = insert_sizes.get(*orientation).map_or(0, |v| v.len());
         eprintln!("{}: {} pairs", orientation, count.to_formatted_string(&Locale::en));
@@ -330,9 +335,7 @@ fn filter_sam(in_filename: &PathBuf, out_filename: &PathBuf,
             None => &NO_ALIGNMENTS,
         };
 
-        let pass_qc = alignment_pass_qc(&a, this_alignments, pair_alignments, low, high, correct_orientation);
-
-        if pass_qc {
+        if alignment_pass_qc(&a, this_alignments, pair_alignments, low, high, correct_orientation) {
             writeln!(writer, "{}", sam_line)?;
             pass_count += 1;
         } else {
@@ -384,8 +387,10 @@ mod tests {
 
     fn run_get_orientation_test(pos_1: i32, pos_2: i32,
                                 strand_1: i32, strand_2: i32, result: &str) {
-        let str_1 = format!("r_1\t{}\tx\t{}\t60\t150M\t*\t0\t0\tACTG\tKKKK\tNM:i:0", strand_1, pos_1);
-        let str_2 = format!("r_2\t{}\tx\t{}\t60\t150M\t*\t0\t0\tACTG\tKKKK\tNM:i:0", strand_2, pos_2);
+        let str_1 = format!("r_1\t{}\tx\t{}\t60\t150M\t*\t0\t0\tACTG\tKKKK\tNM:i:0",
+                            strand_1, pos_1);
+        let str_2 = format!("r_2\t{}\tx\t{}\t60\t150M\t*\t0\t0\tACTG\tKKKK\tNM:i:0",
+                            strand_2, pos_2);
         let a_1 = Alignment::new_quick(&str_1).unwrap();
         let a_2 = Alignment::new_quick(&str_2).unwrap();
         assert_eq!(get_orientation(&a_1, &a_2), result);
