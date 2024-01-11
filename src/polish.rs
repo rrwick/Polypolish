@@ -199,10 +199,12 @@ fn print_polishing_info(seq_len: usize, total_depth: f64, zero_depth_count: usiz
 
     let changed_percent = 100.0 * (changed_count as f64) / seq_len_f64;
     let estimated_accuracy = 100.0 - changed_percent;
+    let estimated_qscore = qscore(estimated_accuracy);
     let positions = if changed_count == 1 {"position"} else {"positions"};
     eprintln!("  {} {} changed ({:.4}% of total positions)",
               changed_count.to_formatted_string(&Locale::en), positions, changed_percent);
-    eprintln!("  estimated pre-polishing sequence accuracy: {:.4}%", estimated_accuracy);
+    eprintln!("  estimated pre-polishing sequence accuracy: {:.4}% ({})",
+              estimated_accuracy, estimated_qscore);
     eprintln!();
 }
 
@@ -265,3 +267,36 @@ fn check_option_values(fraction_invalid: &f64, fraction_valid: &f64) {
         misc::quit_with_error("--fraction_invalid must be less than --fraction_valid")
     }
 }
+
+
+fn qscore(identity: f64) -> String {
+    if identity >= 100.0 {
+        return "Q∞".to_string();
+    }
+    if identity <= 0.0 {
+        return "Q0".to_string();
+    }
+    let errors = 1.0 - (identity / 100.0);
+    let qscore = -10.0 * errors.log10();
+    format!("Q{:.2}", qscore)
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_qscore() {
+        assert_eq!(qscore(90.0000), "Q10.00");
+        assert_eq!(qscore(99.0000), "Q20.00");
+        assert_eq!(qscore(99.9000), "Q30.00");
+        assert_eq!(qscore(99.9900), "Q40.00");
+        assert_eq!(qscore(99.9990), "Q50.00");
+        assert_eq!(qscore(99.9999), "Q60.00");
+        assert_eq!(qscore(99.47634534), "Q22.81");
+        assert_eq!(qscore(100.0), "Q∞");
+        assert_eq!(qscore(0.0), "Q0");
+    }
+}
+
