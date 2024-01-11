@@ -119,7 +119,7 @@ fn load_alignments_one_file(sam_filename: &PathBuf, alignments: &mut HashMap<Str
         if sam_line.starts_with('@') {
             continue;
         }
-        let alignment_result = Alignment::new(&sam_line, false);
+        let alignment_result = Alignment::new_quick(&sam_line);
         match alignment_result {
             Ok(_)  => (),
             Err(e) => quit_with_error(&format!("{} in {:?} (line {})", e, sam_filename, line_count)),
@@ -312,7 +312,7 @@ fn filter_sam(in_filename: &PathBuf, out_filename: &PathBuf,
             continue;
         }
 
-        let a = Alignment::new(&sam_line, false).unwrap();
+        let a = Alignment::new_quick(&sam_line).unwrap();
         if !a.is_aligned() {
             writeln!(writer, "{}", sam_line)?;
             continue;
@@ -385,8 +385,8 @@ mod tests {
                                 strand_1: i32, strand_2: i32, result: &str) {
         let str_1 = format!("r_1\t{}\tx\t{}\t60\t150M\t*\t0\t0\tACTG\tKKKK\tNM:i:0", strand_1, pos_1);
         let str_2 = format!("r_2\t{}\tx\t{}\t60\t150M\t*\t0\t0\tACTG\tKKKK\tNM:i:0", strand_2, pos_2);
-        let a_1 = Alignment::new(&str_1, false).unwrap();
-        let a_2 = Alignment::new(&str_2, false).unwrap();
+        let a_1 = Alignment::new_quick(&str_1).unwrap();
+        let a_2 = Alignment::new_quick(&str_2).unwrap();
         assert_eq!(get_orientation(&a_1, &a_2), result);
     }
 

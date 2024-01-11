@@ -42,7 +42,10 @@ pub struct Alignment {
 }
 
 impl Alignment {
-    pub fn new(sam_line: &str, include_read_seq: bool) -> Result<Alignment, &str> {
+
+    /// This is the full constructor for an Alignment object. It stores the read sequence and
+    /// expanded CIGAR string.
+    pub fn new(sam_line: &str) -> Result<Alignment, &str> {
         let parts = sam_line.split('\t').collect::<Vec<&str>>();
         if parts.len() < 11 {
             return Err("too few columns");
@@ -56,7 +59,7 @@ impl Alignment {
             ref_start -= 1;
         }
         let cigar = parts[5];
-        let read_seq = if include_read_seq { parts[9] } else { "" };
+        let read_seq = parts[9];
 
         let mut mismatches = u32::MAX;
         let mut pass_qc = true;
@@ -90,6 +93,36 @@ impl Alignment {
             read_seq: read_seq.to_ascii_uppercase(),
             mismatches: mismatches,
             pass_qc: pass_qc,
+        })
+    }
+
+    /// This is the quick constructor for an Alignment object. It stores less than Alignment::new
+    /// and is used by filter.rs where read_seq and expanded_cigar aren't needed.
+    pub fn new_quick(sam_line: &str) -> Result<Alignment, &str> {
+        let parts = sam_line.split('\t').collect::<Vec<&str>>();
+        if parts.len() < 11 {
+            return Err("too few columns");
+        }
+
+        let read_name = parts[0];
+        let sam_flags = parts[1].parse::<u32>().unwrap();
+        let ref_name = parts[2];
+        let mut ref_start = parts[3].parse::<usize>().unwrap();
+        if ref_start > 0 {
+            ref_start -= 1;
+        }
+        let cigar = parts[5];
+
+        Ok(Alignment {
+            read_name: read_name.to_string(),
+            ref_name: ref_name.to_string(),
+            sam_flags: sam_flags,
+            ref_start: ref_start,
+            cigar: cigar.to_string(),
+            expanded_cigar: String::new(),
+            read_seq: String::new(),
+            mismatches: 0,
+            pass_qc: true,
         })
     }
 
@@ -201,7 +234,7 @@ pub fn add_to_pileup(filename: &PathBuf, pileups: &mut HashMap<String, Pileup>,
         if sam_line.len() == 0 {continue;}
         if sam_line.starts_with('@') {continue;}
 
-        let alignment_result = Alignment::new(&sam_line, true);
+        let alignment_result = Alignment::new(&sam_line);
         match alignment_result {
             Ok(_)  => (),
             Err(e) => quit_with_error(&format!("{} in {:?} (line {})", e, filename, line_count)),
@@ -357,22 +390,22 @@ mod tests {
     #[test]
     fn test_get_ref_positions() {
         let a_str = format!("r_1\t0\tx\t{}\t60\t4M\t*\t0\t0\tACTG\tKKKK\tNM:i:0", 1000);
-        let alignment = Alignment::new(&a_str, true).unwrap();
+        let alignment = Alignment::new(&a_str).unwrap();
         assert_eq!(alignment.ref_start, 999);
         assert_eq!(alignment.get_ref_end(), 1003);
 
         let a_str = format!("r_1\t0\tx\t{}\t60\t2=1X1=\t*\t0\t0\tACTG\tKKKK\tNM:i:0", 1000);
-        let alignment = Alignment::new(&a_str, true).unwrap();
+        let alignment = Alignment::new(&a_str).unwrap();
         assert_eq!(alignment.ref_start, 999);
         assert_eq!(alignment.get_ref_end(), 1003);
 
         let a_str = format!("r_1\t0\tx\t{}\t60\t2M1I1M\t*\t0\t0\tACTG\tKKKK\tNM:i:0", 1000);
-        let alignment = Alignment::new(&a_str, true).unwrap();
+        let alignment = Alignment::new(&a_str).unwrap();
         assert_eq!(alignment.ref_start, 999);
         assert_eq!(alignment.get_ref_end(), 1002);
 
         let a_str = format!("r_1\t0\tx\t{}\t60\t2M1D1M\t*\t0\t0\tACTG\tKKKK\tNM:i:0", 1000);
-        let alignment = Alignment::new(&a_str, true).unwrap();
+        let alignment = Alignment::new(&a_str).unwrap();
         assert_eq!(alignment.ref_start, 999);
         assert_eq!(alignment.get_ref_end(), 1003);
     }
