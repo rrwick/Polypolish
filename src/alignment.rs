@@ -16,6 +16,7 @@ use crate::misc::{quit_with_error, reverse_complement};
 use crate::pileup::Pileup;
 
 use std::collections::HashMap;
+use std::fmt;
 use std::fs::File;
 use std::io;
 use std::io::{prelude::*, BufReader};
@@ -200,6 +201,14 @@ impl Alignment {
         }
         trim_bases_for_homopolymers(&mut read_bases, &self.read_seq);
         read_bases
+    }
+}
+
+impl fmt::Display for Alignment {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let strand = if self.is_on_forward_strand() { "+" } else { "-" };
+        write!(f, "{}:{}{}:{}-{}",
+               self.read_name, self.ref_name, strand, self.ref_start, self.get_ref_end())
     }
 }
 

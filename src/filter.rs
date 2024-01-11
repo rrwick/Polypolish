@@ -179,31 +179,24 @@ fn get_insert_size_thresholds(alignments: &HashMap<String, Vec<Alignment>>,
 }
 
 
-fn get_orientation(alignment_1: &Alignment, alignment_2: &Alignment) -> String {
-    let strand_1 = if alignment_1.is_on_forward_strand() { 'f' } else { 'r' };
-    let strand_2 = if alignment_2.is_on_forward_strand() { 'f' } else { 'r' };
+fn get_orientation(a_1: &Alignment, a_2: &Alignment) -> String {
+    let strand_1 = if a_1.is_on_forward_strand() { 'f' } else { 'r' };
+    let strand_2 = if a_2.is_on_forward_strand() { 'f' } else { 'r' };
+
+    // Get the read start positions, which is the ref-end position if on the negative strand.
+    let a_1_pos = if a_1.is_on_forward_strand() { a_1.ref_start } else { a_1.get_ref_end() };
+    let a_2_pos = if a_2.is_on_forward_strand() { a_2.ref_start } else { a_2.get_ref_end() };
+
     match (strand_1, strand_2) {
         ('f', 'r') | ('r', 'f') => {
-            if alignment_1.ref_start < alignment_2.ref_start {
+            if a_1_pos < a_2_pos {
                 format!("{}{}", strand_1, strand_2)
             } else {
                 format!("{}{}", strand_2, strand_1)
             }
         },
-        ('f', 'f') => {
-            if alignment_1.ref_start < alignment_2.ref_start {
-                "ff".to_string()
-            } else {
-                "rr".to_string()
-            }
-        },
-        ('r', 'r') => {
-            if alignment_2.ref_start < alignment_1.ref_start {
-                "ff".to_string()
-            } else {
-                "rr".to_string()
-            }
-        },
+        ('f', 'f') => { if a_1_pos < a_2_pos { "ff".to_string() } else { "rr".to_string() } },
+        ('r', 'r') => { if a_2_pos < a_1_pos { "ff".to_string() } else { "rr".to_string() } },
         _ => unreachable!()
     }
 }
