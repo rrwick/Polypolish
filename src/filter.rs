@@ -42,7 +42,7 @@ fn check_inputs(in1: &PathBuf, in2: &PathBuf, out1: &PathBuf, out2: &PathBuf,
     let mut files = HashSet::new();
     if !files.insert(in1.clone()) || !files.insert(in2.clone()) || 
         !files.insert(out1.clone()) || !files.insert(out2.clone()) {
-        quit_with_error("--in1, --in2, --out1, --out2 must all have unique values");
+        quit_with_error("--in1, --in2, --out1 and --out2 must all have unique values");
     }
     if *low <= 0.0 || *low >= 50.0 {
         quit_with_error("--low must be greater than 0 and less than 50")
@@ -119,7 +119,7 @@ fn load_alignments_one_file(sam_filename: &PathBuf, alignments: &mut HashMap<Str
         if sam_line.starts_with('@') {
             continue;
         }
-        let alignment_result = Alignment::new(&sam_line);
+        let alignment_result = Alignment::new(&sam_line, false);
         match alignment_result {
             Ok(_)  => (),
             Err(e) => quit_with_error(&format!("{} in {:?} (line {})", e, sam_filename, line_count)),
@@ -312,7 +312,7 @@ fn filter_sam(in_filename: &PathBuf, out_filename: &PathBuf,
             continue;
         }
 
-        let a = Alignment::new(&sam_line).unwrap();
+        let a = Alignment::new(&sam_line, false).unwrap();
         if !a.is_aligned() {
             writeln!(writer, "{}", sam_line)?;
             continue;
@@ -385,8 +385,8 @@ mod tests {
                                 strand_1: i32, strand_2: i32, result: &str) {
         let str_1 = format!("r_1\t{}\tx\t{}\t60\t150M\t*\t0\t0\tACTG\tKKKK\tNM:i:0", strand_1, pos_1);
         let str_2 = format!("r_2\t{}\tx\t{}\t60\t150M\t*\t0\t0\tACTG\tKKKK\tNM:i:0", strand_2, pos_2);
-        let a_1 = Alignment::new(&str_1).unwrap();
-        let a_2 = Alignment::new(&str_2).unwrap();
+        let a_1 = Alignment::new(&str_1, false).unwrap();
+        let a_2 = Alignment::new(&str_2, false).unwrap();
         assert_eq!(get_orientation(&a_1, &a_2), result);
     }
 

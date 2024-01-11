@@ -42,7 +42,7 @@ pub struct Alignment {
 }
 
 impl Alignment {
-    pub fn new(sam_line: &str) -> Result<Alignment, &str> {
+    pub fn new(sam_line: &str, include_read_seq: bool) -> Result<Alignment, &str> {
         let parts = sam_line.split('\t').collect::<Vec<&str>>();
         if parts.len() < 11 {
             return Err("too few columns");
@@ -56,7 +56,7 @@ impl Alignment {
             ref_start -= 1;
         }
         let cigar = parts[5];
-        let read_seq = parts[9];
+        let read_seq = if include_read_seq { parts[9] } else { "" };
 
         let mut mismatches = u32::MAX;
         let mut pass_qc = true;
@@ -201,7 +201,7 @@ pub fn add_to_pileup(filename: &PathBuf, pileups: &mut HashMap<String, Pileup>,
         if sam_line.len() == 0 {continue;}
         if sam_line.starts_with('@') {continue;}
 
-        let alignment_result = Alignment::new(&sam_line);
+        let alignment_result = Alignment::new(&sam_line, true);
         match alignment_result {
             Ok(_)  => (),
             Err(e) => quit_with_error(&format!("{} in {:?} (line {})", e, filename, line_count)),
@@ -357,22 +357,22 @@ mod tests {
     #[test]
     fn test_get_ref_positions() {
         let a_str = format!("r_1\t0\tx\t{}\t60\t4M\t*\t0\t0\tACTG\tKKKK\tNM:i:0", 1000);
-        let alignment = Alignment::new(&a_str).unwrap();
+        let alignment = Alignment::new(&a_str, true).unwrap();
         assert_eq!(alignment.ref_start, 999);
         assert_eq!(alignment.get_ref_end(), 1003);
 
         let a_str = format!("r_1\t0\tx\t{}\t60\t2=1X1=\t*\t0\t0\tACTG\tKKKK\tNM:i:0", 1000);
-        let alignment = Alignment::new(&a_str).unwrap();
+        let alignment = Alignment::new(&a_str, true).unwrap();
         assert_eq!(alignment.ref_start, 999);
         assert_eq!(alignment.get_ref_end(), 1003);
 
         let a_str = format!("r_1\t0\tx\t{}\t60\t2M1I1M\t*\t0\t0\tACTG\tKKKK\tNM:i:0", 1000);
-        let alignment = Alignment::new(&a_str).unwrap();
+        let alignment = Alignment::new(&a_str, true).unwrap();
         assert_eq!(alignment.ref_start, 999);
         assert_eq!(alignment.get_ref_end(), 1002);
 
         let a_str = format!("r_1\t0\tx\t{}\t60\t2M1D1M\t*\t0\t0\tACTG\tKKKK\tNM:i:0", 1000);
-        let alignment = Alignment::new(&a_str).unwrap();
+        let alignment = Alignment::new(&a_str, true).unwrap();
         assert_eq!(alignment.ref_start, 999);
         assert_eq!(alignment.get_ref_end(), 1003);
     }
