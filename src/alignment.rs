@@ -132,11 +132,7 @@ impl Alignment {
     }
 
     fn get_strand(&self) -> i8 {
-        if self.is_on_forward_strand() {
-            1
-        } else {
-            -1
-        }
+        if self.is_on_forward_strand() { 1 } else { -1 }
     }
 
     pub fn get_ref_end(&self) -> usize {
@@ -203,6 +199,7 @@ impl Alignment {
         read_bases
     }
 }
+
 
 impl fmt::Display for Alignment {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
