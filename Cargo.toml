@@ -2,9 +2,9 @@
 name = "polypolish"
 version = "0.6.0"
 authors = ["Ryan Wick <rrwick@gmail.com>"]
-edition = "2018"
+edition = "2021"
 description = "short-read polishing of long-read assemblies"
-rust-version = "1.56"
+rust-version = "1.75"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
