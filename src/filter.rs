@@ -26,11 +26,11 @@ use crate::misc::{quit_with_error, format_duration};
 pub fn filter(in1: PathBuf, in2: PathBuf, out1: PathBuf, out2: PathBuf,
               orientation: String, low: f64, high: f64) {
     let start_time = Instant::now();
-    check_inputs(&in1, &in2, &out1, &out2, &low, &high);
-    starting_message(&in1, &in2, &out1, &out2, &orientation, &low, &high);
+    check_inputs(&in1, &in2, &out1, &out2, low, high);
+    starting_message(&in1, &in2, &out1, &out2, &orientation, low, high);
     let (alignments, before_count) = load_alignments(&in1, &in2);
     let (low, high, correct_orientation) = get_insert_size_thresholds(&alignments, &orientation,
-                                                                      &low, &high);
+                                                                      low, high);
     let after_count = filter_sams(&in1, &in2, &out1, &out2, &alignments, low, high,
                                   correct_orientation);
     finished_message(start_time, before_count, after_count)
@@ -38,23 +38,23 @@ pub fn filter(in1: PathBuf, in2: PathBuf, out1: PathBuf, out2: PathBuf,
 
 
 fn check_inputs(in1: &PathBuf, in2: &PathBuf, out1: &PathBuf, out2: &PathBuf,
-                low: &f64, high: &f64) {
+                low: f64, high: f64) {
     let mut files = HashSet::new();
     if !files.insert(in1.clone()) || !files.insert(in2.clone()) || 
         !files.insert(out1.clone()) || !files.insert(out2.clone()) {
         quit_with_error("--in1, --in2, --out1 and --out2 must all have unique values");
     }
-    if *low <= 0.0 || *low >= 50.0 {
+    if low <= 0.0 || low >= 50.0 {
         quit_with_error("--low must be greater than 0 and less than 50")
     }
-    if *high <= 50.0 || *high >= 100.0 {
+    if high <= 50.0 || high >= 100.0 {
         quit_with_error("--high must be greater than 50 and less than 100")
     }
 }
 
 
 fn starting_message(in1: &PathBuf, in2: &PathBuf, out1: &PathBuf, out2: &PathBuf,
-                    orientation: &String, low: &f64, high: &f64) {
+                    orientation: &String, low: f64, high: f64) {
     log::section_header("Starting Polypolish filter");
     log::explanation("This runs a pre-processing filter on SAM alignments before they are used to \
                       polish. It looks at each read pair and flags alignments that do not seem to \
@@ -144,7 +144,7 @@ fn load_alignments_one_file(sam_filename: &PathBuf,
 
 fn get_insert_size_thresholds(alignments: &HashMap<String, Vec<Alignment>>,
                               correct_orientation: &String,
-                              low_percentile: &f64, high_percentile: &f64) -> (u32, u32, String) {
+                              low_percentile: f64, high_percentile: f64) -> (u32, u32, String) {
     log::section_header("Finding insert size thresholds");
     log::explanation("Read pairs with exactly one alignment per read are used to determine the \
                       orientation and insert size thresholds for the read set.");
@@ -169,10 +169,10 @@ fn get_insert_size_thresholds(alignments: &HashMap<String, Vec<Alignment>>,
         quit_with_error("Error: no read pairs available to determine insert size thresholds");
     }
     sizes.sort_unstable();
-    let low_threshold = get_percentile(&sizes, *low_percentile);
-    let high_threshold = get_percentile(&sizes, *high_percentile);
-    eprintln!("Low threshold:  {} ({})", low_threshold, get_percentile_name(*low_percentile));
-    eprintln!("High threshold: {} ({})", high_threshold, get_percentile_name(*high_percentile));
+    let low_threshold = get_percentile(&sizes, low_percentile);
+    let high_threshold = get_percentile(&sizes, high_percentile);
+    eprintln!("Low threshold:  {} ({})", low_threshold, get_percentile_name(low_percentile));
+    eprintln!("High threshold: {} ({})", high_threshold, get_percentile_name(high_percentile));
     eprintln!();
 
     (low_threshold, high_threshold, correct_orientation)
@@ -276,12 +276,12 @@ fn filter_sams(in1: &PathBuf, in2: &PathBuf, out1: &PathBuf, out2: &PathBuf,
                       Read alignments which are not part of good pair are written to the output \
                       file with a \"ZP:Z:fail\" tag so Polypolish will not use them.");
     let mut after_count = 0;
-    let result_1 = filter_sam(&in1, &out1, &alignments, &low, &high, &correct_orientation, 1);
+    let result_1 = filter_sam(&in1, &out1, &alignments, low, high, &correct_orientation, 1);
     match result_1 {
         Ok(count) => { after_count += count },
         Err(_) => quit_with_error(&format!("unable to write alignments to {:?}", out1)),
     }
-    let result_2 = filter_sam(&in2, &out2, &alignments, &low, &high, &correct_orientation, 2);
+    let result_2 = filter_sam(&in2, &out2, &alignments, low, high, &correct_orientation, 2);
     match result_2 {
         Ok(count) => { after_count += count },
         Err(_) => quit_with_error(&format!("unable to write alignments to {:?}", out2)),
@@ -291,7 +291,7 @@ fn filter_sams(in1: &PathBuf, in2: &PathBuf, out1: &PathBuf, out2: &PathBuf,
 
 
 fn filter_sam(in_filename: &PathBuf, out_filename: &PathBuf,
-              alignments: &HashMap<String, Vec<Alignment>>, low: &u32, high: &u32,
+              alignments: &HashMap<String, Vec<Alignment>>, low: u32, high: u32,
               correct_orientation: &String, read_num: usize) -> io::Result<usize> {
     eprintln!("Filtering {}:", in_filename.display());
     let mut pass_count = 0;
@@ -347,7 +347,7 @@ fn filter_sam(in_filename: &PathBuf, out_filename: &PathBuf,
 
 
 fn alignment_pass_qc(a: &Alignment, this_alignments: &[Alignment], pair_alignments: &[Alignment],
-                     low: &u32, high: &u32, correct_orientation: &str) -> bool {
+                     low: u32, high: u32, correct_orientation: &str) -> bool {
     // Rules for whether an alignment passes or fails filtering:
     // * If there are no pair alignments, it passes. I.e. if we can't use read pairs to assess the
     //   alignment, we keep it.
@@ -366,7 +366,7 @@ fn alignment_pass_qc(a: &Alignment, this_alignments: &[Alignment], pair_alignmen
         let same_ref = a.ref_name == pair_alignment.ref_name;
         let insert = get_insert_size(a, pair_alignment);
         let orientation = get_orientation(a, pair_alignment);
-        if same_ref && *low <= insert && insert <= *high && orientation == correct_orientation {
+        if same_ref && low <= insert && insert <= high && orientation == correct_orientation {
             return true;
         }
     }

@@ -26,20 +26,20 @@ use crate::pileup;
 pub fn polish(debug: Option<PathBuf>, fraction_invalid: f64, fraction_valid: f64, max_errors: u32,
               min_depth: u32, assembly: PathBuf, sam: Vec<PathBuf>) {
     let start_time = Instant::now();
-    check_option_values(&fraction_invalid, &fraction_valid);
+    check_option_values(fraction_invalid, fraction_valid);
     check_inputs_exist(&assembly, &sam);
-    starting_message(&debug, &fraction_invalid, &fraction_valid, &max_errors, &min_depth,
+    starting_message(&debug, fraction_invalid, fraction_valid, max_errors, min_depth,
                      &assembly, &sam);
     let (seq_names, mut pileups) = load_assembly(&assembly);
-    load_alignments(&max_errors, &sam, &mut pileups);
-    let new_lengths = polish_sequences(&debug, &fraction_invalid, &fraction_valid, &min_depth,
+    load_alignments(max_errors, &sam, &mut pileups);
+    let new_lengths = polish_sequences(&debug, fraction_invalid, fraction_valid, min_depth,
                                        &seq_names, &mut pileups);
     finished_message(&debug, new_lengths, start_time);
 }
 
 
-fn starting_message(debug: &Option<PathBuf>, fraction_invalid: &f64, fraction_valid: &f64,
-                    max_errors: &u32, min_depth: &u32, assembly: &PathBuf, sam: &Vec<PathBuf>) {
+fn starting_message(debug: &Option<PathBuf>, fraction_invalid: f64, fraction_valid: f64,
+                    max_errors: u32, min_depth: u32, assembly: &PathBuf, sam: &Vec<PathBuf>) {
     log::section_header("Starting Polypolish polish");
     log::explanation("Polypolish is a tool for polishing genome assemblies with short reads. \
                       Unlike other tools in this category, Polypolish uses SAM files where each \
@@ -101,14 +101,14 @@ fn load_assembly(assembly_filename: &PathBuf) -> (Vec<String>, HashMap<String, p
 }
 
 
-fn load_alignments(max_errors: &u32, sam: &Vec<PathBuf>,
+fn load_alignments(max_errors: u32, sam: &Vec<PathBuf>,
                    pileups: &mut HashMap<String, pileup::Pileup>) {
     log::section_header("Loading alignments");
     let mut alignment_total: usize = 0;
     let mut used_total: usize = 0;
     for s in sam {
         let (alignment_count, used_count, read_count) = alignment::process_sam(&s, pileups,
-                                                                               *max_errors);
+                                                                               max_errors);
         eprintln!("{}: {} alignments from {} reads", s.display(),
                   alignment_count.to_formatted_string(&Locale::en),
                   read_count.to_formatted_string(&Locale::en));
@@ -124,8 +124,8 @@ fn load_alignments(max_errors: &u32, sam: &Vec<PathBuf>,
 }
 
 
-fn polish_sequences(debug: &Option<PathBuf>, fraction_invalid: &f64, fraction_valid: &f64,
-                    min_depth: &u32, seq_names: &Vec<String>,
+fn polish_sequences(debug: &Option<PathBuf>, fraction_invalid: f64, fraction_valid: f64,
+                    min_depth: u32, seq_names: &Vec<String>,
                     pileups: &HashMap<String, pileup::Pileup>) -> Vec<(String, usize)>{
     log::section_header("Polishing assembly sequences");
     log::explanation("For each position in the assembly, Polypolish determines the read \
@@ -136,7 +136,7 @@ fn polish_sequences(debug: &Option<PathBuf>, fraction_invalid: &f64, fraction_va
     let mut new_lengths = Vec::new();
     for name in seq_names {
         let pileup = pileups.get(name).unwrap();
-        let new_length = polish_one_sequence(&debug, &fraction_invalid, &fraction_valid, &min_depth,
+        let new_length = polish_one_sequence(&debug, fraction_invalid, fraction_valid, min_depth,
                                              name, pileup, &mut debug_file);
         new_lengths.push((name.clone(), new_length));
     }
@@ -144,8 +144,8 @@ fn polish_sequences(debug: &Option<PathBuf>, fraction_invalid: &f64, fraction_va
 }
 
 
-fn polish_one_sequence(debug: &Option<PathBuf>, fraction_invalid: &f64, fraction_valid: &f64,
-                       min_depth: &u32, name: &str, pileup: &pileup::Pileup,
+fn polish_one_sequence(debug: &Option<PathBuf>, fraction_invalid: f64, fraction_valid: f64,
+                       min_depth: u32, name: &str, pileup: &pileup::Pileup,
                        debug_file: &mut Option<File>) -> usize {
     let seq_len = pileup.bases.len();
     eprintln!("Polishing {} ({} bp):", name, seq_len.to_formatted_string(&Locale::en));
@@ -158,8 +158,8 @@ fn polish_one_sequence(debug: &Option<PathBuf>, fraction_invalid: &f64, fraction
     let build_debug_str = match debug_file {Some(_) => true, None => false};
 
     for b in &pileup.bases {
-        let (seq, status, debug_line) = b.get_polished_seq(*min_depth, *fraction_valid,
-                                                           *fraction_invalid, build_debug_str);
+        let (seq, status, debug_line) = b.get_polished_seq(min_depth, fraction_valid,
+                                                           fraction_invalid, build_debug_str);
         match status {
             pileup::BaseStatus::Changed => {changed_count += 1}
             _                           => {}
@@ -256,14 +256,14 @@ fn check_inputs_exist(assembly: &PathBuf, sam: &Vec<PathBuf>) {
 }
 
 
-fn check_option_values(fraction_invalid: &f64, fraction_valid: &f64) {
-    if *fraction_valid <= 0.0 || *fraction_valid >= 1.0 {
+fn check_option_values(fraction_invalid: f64, fraction_valid: f64) {
+    if fraction_valid <= 0.0 || fraction_valid >= 1.0 {
         misc::quit_with_error("--fraction_valid must be between 0 and 1 (exclusive)")
     }
-    if *fraction_invalid <= 0.0 || *fraction_invalid >= 1.0 {
+    if fraction_invalid <= 0.0 || fraction_invalid >= 1.0 {
         misc::quit_with_error("--fraction_invalid must be between 0 and 1 (exclusive)")
     }
-    if *fraction_invalid >= *fraction_valid {
+    if fraction_invalid >= fraction_valid {
         misc::quit_with_error("--fraction_invalid must be less than --fraction_valid")
     }
 }
