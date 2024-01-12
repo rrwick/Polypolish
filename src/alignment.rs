@@ -211,8 +211,8 @@ impl fmt::Display for Alignment {
 
 
 pub fn process_sam(filename: &PathBuf, pileups: &mut HashMap<String, Pileup>,
-                   max_errors: u32) -> (usize, usize, usize) {
-    let result = add_to_pileup(filename, pileups, max_errors);
+                   max_errors: u32, careful: bool) -> (usize, usize, usize) {
+    let result = add_to_pileup(filename, pileups, max_errors, careful);
     match result {
         Ok((_,_,_)) => (),
         Err(_)      => quit_with_error(&format!("unable to load alignments from {:?}", filename)),
@@ -222,7 +222,7 @@ pub fn process_sam(filename: &PathBuf, pileups: &mut HashMap<String, Pileup>,
 
 
 pub fn add_to_pileup(filename: &PathBuf, pileups: &mut HashMap<String, Pileup>,
-                     max_errors: u32) -> io::Result<(usize, usize, usize)> {
+                     max_errors: u32, careful: bool) -> io::Result<(usize, usize, usize)> {
     let file = File::open(&filename)?;
     let reader = BufReader::new(file);
 
@@ -254,14 +254,14 @@ pub fn add_to_pileup(filename: &PathBuf, pileups: &mut HashMap<String, Pileup>,
         if current_read_name.is_empty() || current_read_name == alignment.read_name {
             current_read_alignments.push(alignment);
         } else {
-            used_count += process_one_read(current_read_alignments, pileups, max_errors);
+            used_count += process_one_read(current_read_alignments, pileups, max_errors, careful);
             read_count += 1;
             current_read_alignments = Vec::new();
             current_read_alignments.push(alignment);
         }
         current_read_name = read_name;
     }
-    used_count += process_one_read(current_read_alignments, pileups, max_errors);
+    used_count += process_one_read(current_read_alignments, pileups, max_errors, careful);
     read_count += 1;
 
     if alignment_count == 0 {
@@ -272,7 +272,10 @@ pub fn add_to_pileup(filename: &PathBuf, pileups: &mut HashMap<String, Pileup>,
 
 
 fn process_one_read(alignments: Vec<Alignment>, pileups: &mut HashMap<String, Pileup>,
-                    max_errors: u32) -> usize {
+                    max_errors: u32, careful: bool) -> usize {
+    if careful && alignments.len() > 1 {
+        return 0;
+    }
     let (read_seq, strand) = get_read_seq_from_alignments(&alignments);
 
     let mut good_alignments = Vec::new();

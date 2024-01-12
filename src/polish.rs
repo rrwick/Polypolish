@@ -24,14 +24,14 @@ use crate::pileup;
 
 
 pub fn polish(debug: Option<PathBuf>, fraction_invalid: f64, fraction_valid: f64, max_errors: u32,
-              min_depth: u32, assembly: PathBuf, sam: Vec<PathBuf>) {
+              min_depth: u32, careful: bool, assembly: PathBuf, sam: Vec<PathBuf>) {
     let start_time = Instant::now();
     check_option_values(fraction_invalid, fraction_valid);
     check_inputs_exist(&assembly, &sam);
     starting_message(&debug, fraction_invalid, fraction_valid, max_errors, min_depth,
-                     &assembly, &sam);
+                     careful, &assembly, &sam);
     let (seq_names, mut pileups) = load_assembly(&assembly);
-    load_alignments(max_errors, &sam, &mut pileups);
+    load_alignments(max_errors, careful, &sam, &mut pileups);
     let new_lengths = polish_sequences(&debug, fraction_invalid, fraction_valid, min_depth,
                                        &seq_names, &mut pileups);
     finished_message(&debug, new_lengths, start_time);
@@ -39,7 +39,8 @@ pub fn polish(debug: Option<PathBuf>, fraction_invalid: f64, fraction_valid: f64
 
 
 fn starting_message(debug: &Option<PathBuf>, fraction_invalid: f64, fraction_valid: f64,
-                    max_errors: u32, min_depth: u32, assembly: &PathBuf, sam: &Vec<PathBuf>) {
+                    max_errors: u32, min_depth: u32, careful: bool, assembly: &PathBuf,
+                    sam: &Vec<PathBuf>) {
     log::section_header("Starting Polypolish polish");
     log::explanation("Polypolish is a tool for polishing genome assemblies with short reads. \
                       Unlike other tools in this category, Polypolish uses SAM files where each \
@@ -61,6 +62,9 @@ fn starting_message(debug: &Option<PathBuf>, fraction_invalid: f64, fraction_val
     eprintln!("  --fraction_valid {}", fraction_valid);
     eprintln!("  --max_errors {}", max_errors);
     eprintln!("  --min_depth {}", min_depth);
+    if careful {
+        eprintln!("  --careful");
+    }
     match debug {
         Some(filename) => eprintln!("  --debug {}", filename.display()),
         None           => eprintln!("  not logging debugging information"),
@@ -101,14 +105,14 @@ fn load_assembly(assembly_filename: &PathBuf) -> (Vec<String>, HashMap<String, p
 }
 
 
-fn load_alignments(max_errors: u32, sam: &Vec<PathBuf>,
+fn load_alignments(max_errors: u32, careful: bool, sam: &Vec<PathBuf>,
                    pileups: &mut HashMap<String, pileup::Pileup>) {
     log::section_header("Loading alignments");
     let mut alignment_total: usize = 0;
     let mut used_total: usize = 0;
     for s in sam {
-        let (alignment_count, used_count, read_count) = alignment::process_sam(&s, pileups,
-                                                                               max_errors);
+        let (alignment_count, used_count,
+             read_count) = alignment::process_sam(&s, pileups, max_errors, careful);
         eprintln!("{}: {} alignments from {} reads", s.display(),
                   alignment_count.to_formatted_string(&Locale::en),
                   read_count.to_formatted_string(&Locale::en));
@@ -117,7 +121,12 @@ fn load_alignments(max_errors: u32, sam: &Vec<PathBuf>,
     }
     let discarded_count = alignment_total - used_total;
     eprintln!();
-    eprintln!("Filtering for high-quality end-to-end alignments:");
+    if careful {
+        eprintln!("Filtering for high-quality end-to-end alignments from reads with only one \
+                   alignment:");
+    } else {
+        eprintln!("Filtering for high-quality end-to-end alignments:");
+    }
     eprintln!("  {} alignments kept", used_total.to_formatted_string(&Locale::en));
     eprintln!("  {} alignments discarded", discarded_count.to_formatted_string(&Locale::en));
     eprintln!();

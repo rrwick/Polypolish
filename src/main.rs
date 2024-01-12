@@ -96,6 +96,10 @@ enum Commands {
         #[clap(short = 'd', long = "min_depth", default_value = "5")]
         min_depth: u32,
 
+        /// Ignore any reads with multiple alignments
+        #[arg(long = "careful")]
+        careful: bool,
+
         /// Assembly to polish (one file in FASTA format)
         assembly: PathBuf,
 
@@ -113,9 +117,9 @@ fn main() {
             filter::filter(in1, in2, out1, out2, orientation, low, high);
         },
         Some(Commands::Polish { debug, fraction_invalid, fraction_valid, max_errors, min_depth,
-                                assembly, sam}) => {
+                                careful, assembly, sam}) => {
             polish::polish(debug, fraction_invalid, fraction_valid, max_errors, min_depth,
-                           assembly, sam);
+                           careful, assembly, sam);
         },
         None => {}
     }
