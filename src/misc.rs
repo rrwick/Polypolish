@@ -228,7 +228,54 @@ pub fn bankers_rounding(float: f64) -> u32 {
 
 #[cfg(test)]
 mod tests {
+    use flate2::Compression;
+    use flate2::write::GzEncoder;
+    use std::fs::File;
+    use std::io::Write;
+    use tempfile::{TempDir,tempdir};
     use super::*;
+
+    fn make_test_file(contents: &str) -> (PathBuf, TempDir) {
+        let dir = tempdir().unwrap();
+        let file_path = dir.path().join("test.fasta");
+        let mut file = File::create(&file_path).unwrap();
+        write!(file, "{}", contents).unwrap();
+        (file_path, dir)
+    }
+
+    fn make_gzipped_test_file(contents: &str) -> (PathBuf, TempDir) {
+        let dir = tempdir().unwrap();
+        let file_path = dir.path().join("test.fasta.gz");
+        let mut file = File::create(&file_path).unwrap();
+        let mut e = GzEncoder::new(Vec::new(), Compression::default());
+        e.write_all(contents.as_bytes()).unwrap();
+        let _ = file.write_all(&e.finish().unwrap());
+        (file_path, dir)
+    }
+
+    #[test]
+    fn test_load_fasta_1() {
+        let (path, _dir) = make_test_file(">seq_1\nACGAT\n\
+                                           >seq_2\nGGTA\n\
+                                           >seq_3\nCTCGCATCAG\n");
+        let fasta = load_fasta(&path);
+        assert_eq!(fasta.len(), 3);
+        assert_eq!(fasta, vec![("seq_1".to_string(), "ACGAT".to_string()),
+                               ("seq_2".to_string(), "GGTA".to_string()),
+                               ("seq_3".to_string(), "CTCGCATCAG".to_string())]);
+    }
+
+    #[test]
+    fn test_load_fasta_2() {
+        let (path, _dir) = make_gzipped_test_file(">seq_1\nACGAT\n\
+                                                   >seq_2\nGGTA\n\
+                                                   >seq_3\nCTCGCATCAG\n");
+        let fasta = load_fasta(&path);
+        assert_eq!(fasta.len(), 3);
+        assert_eq!(fasta, vec![("seq_1".to_string(), "ACGAT".to_string()),
+                               ("seq_2".to_string(), "GGTA".to_string()),
+                               ("seq_3".to_string(), "CTCGCATCAG".to_string())]);
+    }
 
     #[test]
     fn test_format_duration() {
