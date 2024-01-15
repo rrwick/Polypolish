@@ -35,7 +35,7 @@ pub fn quit_with_error(text: &str) {
 
 /// This function loads a FASTA file and runs a few checks on the result. If everything looks good,
 /// it returns a vector of name+sequence tuples.
-pub fn load_fasta(filename: &PathBuf) -> Vec<(String, String)> {
+pub fn load_fasta(filename: &PathBuf) -> Vec<(String, String, String)> {
     let load_result = if is_file_gzipped(&filename) {
         load_fasta_gzipped(&filename)
     } else {
@@ -53,11 +53,11 @@ pub fn load_fasta(filename: &PathBuf) -> Vec<(String, String)> {
 
 /// This function looks at the result of the load_fasta function and does some checks to make sure
 /// everything looks okay. If any problems are found, it will quit with an error message.
-fn check_load_fasta(fasta_seqs: &Vec<(String, String)>, filename: &PathBuf) {
+fn check_load_fasta(fasta_seqs: &Vec<(String, String, String)>, filename: &PathBuf) {
     if fasta_seqs.len() == 0 {
         quit_with_error(&format!("{:?} contains no sequences", filename));
     }
-    for (name, sequence) in fasta_seqs {
+    for (name, _, sequence) in fasta_seqs {
         if name.len() == 0 {
             quit_with_error(&format!("{:?} has an unnamed sequence", filename));
         }
@@ -66,7 +66,7 @@ fn check_load_fasta(fasta_seqs: &Vec<(String, String)>, filename: &PathBuf) {
         }
     }
     let mut set = HashSet::new();
-    for (name, _) in fasta_seqs {
+    for (name, _, _) in fasta_seqs {
         set.insert(name);
     }
     if set.len() < fasta_seqs.len() {
@@ -99,11 +99,12 @@ fn is_file_gzipped(filename: &PathBuf) -> bool {
 }
 
 
-fn load_fasta_not_gzipped(filename: &PathBuf) -> io::Result<Vec<(String, String)>> {
+fn load_fasta_not_gzipped(filename: &PathBuf) -> io::Result<Vec<(String, String, String)>> {
     let mut fasta_seqs = Vec::new();
     let file = File::open(&filename)?;
     let reader = BufReader::new(file);
     let mut name = String::new();
+    let mut description = String::new();
     let mut sequence = String::new();
     for line in reader.lines() {
         let text = line?;
@@ -111,15 +112,12 @@ fn load_fasta_not_gzipped(filename: &PathBuf) -> io::Result<Vec<(String, String)
         if text.starts_with('>') {
             if name.len() > 0 {
                 sequence.make_ascii_uppercase();
-                fasta_seqs.push((name, sequence));
+                fasta_seqs.push((name, description, sequence));
                 sequence = String::new();
             }
-            let first_piece = text[1..].split_whitespace().next();
-            match first_piece {
-                Some(_) => (),
-                None    => quit_with_error(&format!("{:?} is not correctly formatted", filename)),
-            }
-            name = first_piece.unwrap().to_string();
+            let mut split = text[1..].splitn(2, char::is_whitespace);
+            name = split.next().unwrap_or_default().to_string();
+            description = split.next().unwrap_or_default().to_string();
         } else {
             if name.len() == 0 {
                 quit_with_error(&format!("{:?} is not correctly formatted", filename));
@@ -129,17 +127,18 @@ fn load_fasta_not_gzipped(filename: &PathBuf) -> io::Result<Vec<(String, String)
     }
     if name.len() > 0 {
         sequence.make_ascii_uppercase();
-        fasta_seqs.push((name, sequence));
+        fasta_seqs.push((name, description, sequence));
     }
     Ok(fasta_seqs)
 }
 
 
-fn load_fasta_gzipped(filename: &PathBuf) -> io::Result<Vec<(String, String)>> {
+fn load_fasta_gzipped(filename: &PathBuf) -> io::Result<Vec<(String, String, String)>> {
     let mut fasta_seqs = Vec::new();
     let file = File::open(&filename)?;
     let reader = BufReader::new(GzDecoder::new(file));
     let mut name = String::new();
+    let mut description = String::new();
     let mut sequence = String::new();
     for line in reader.lines() {
         let text = line?;
@@ -147,15 +146,12 @@ fn load_fasta_gzipped(filename: &PathBuf) -> io::Result<Vec<(String, String)>> {
         if text.starts_with('>') {
             if name.len() > 0 {
                 sequence.make_ascii_uppercase();
-                fasta_seqs.push((name, sequence));
+                fasta_seqs.push((name, description, sequence));
                 sequence = String::new();
             }
-            let first_piece = text[1..].split_whitespace().next();
-            match first_piece {
-                Some(_) => (),
-                None    => quit_with_error(&format!("{:?} is not correctly formatted", filename)),
-            }
-            name = first_piece.unwrap().to_string();
+            let mut split = text[1..].splitn(2, char::is_whitespace);
+            name = split.next().unwrap_or_default().to_string();
+            description = split.next().unwrap_or_default().to_string();
         } else {
             if name.len() == 0 {
                 quit_with_error(&format!("{:?} is not correctly formatted", filename));
@@ -165,7 +161,7 @@ fn load_fasta_gzipped(filename: &PathBuf) -> io::Result<Vec<(String, String)>> {
     }
     if name.len() > 0 {
         sequence.make_ascii_uppercase();
-        fasta_seqs.push((name, sequence));
+        fasta_seqs.push((name, description, sequence));
     }
     Ok(fasta_seqs)
 }
@@ -255,26 +251,26 @@ mod tests {
 
     #[test]
     fn test_load_fasta_1() {
-        let (path, _dir) = make_test_file(">seq_1\nACGAT\n\
-                                           >seq_2\nGGTA\n\
+        let (path, _dir) = make_test_file(">seq_1 123 456\nACGAT\n\
+                                           >seq_2 abc\nGGTA\n\
                                            >seq_3\nCTCGCATCAG\n");
         let fasta = load_fasta(&path);
         assert_eq!(fasta.len(), 3);
-        assert_eq!(fasta, vec![("seq_1".to_string(), "ACGAT".to_string()),
-                               ("seq_2".to_string(), "GGTA".to_string()),
-                               ("seq_3".to_string(), "CTCGCATCAG".to_string())]);
+        assert_eq!(fasta, vec![("seq_1".to_string(), "123 456".to_string(), "ACGAT".to_string()),
+                               ("seq_2".to_string(), "abc".to_string(), "GGTA".to_string()),
+                               ("seq_3".to_string(), "".to_string(), "CTCGCATCAG".to_string())]);
     }
 
     #[test]
     fn test_load_fasta_2() {
-        let (path, _dir) = make_gzipped_test_file(">seq_1\nACGAT\n\
-                                                   >seq_2\nGGTA\n\
+        let (path, _dir) = make_gzipped_test_file(">seq_1 123 456\nACGAT\n\
+                                                   >seq_2 abc\nGGTA\n\
                                                    >seq_3\nCTCGCATCAG\n");
         let fasta = load_fasta(&path);
         assert_eq!(fasta.len(), 3);
-        assert_eq!(fasta, vec![("seq_1".to_string(), "ACGAT".to_string()),
-                               ("seq_2".to_string(), "GGTA".to_string()),
-                               ("seq_3".to_string(), "CTCGCATCAG".to_string())]);
+        assert_eq!(fasta, vec![("seq_1".to_string(), "123 456".to_string(), "ACGAT".to_string()),
+                               ("seq_2".to_string(), "abc".to_string(), "GGTA".to_string()),
+                               ("seq_3".to_string(), "".to_string(), "CTCGCATCAG".to_string())]);
     }
 
     #[test]

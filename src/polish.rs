@@ -90,14 +90,15 @@ fn finished_message(debug: &Option<PathBuf>, new_lengths: Vec<(String, usize)>,
 }
 
 
-fn load_assembly(assembly_filename: &PathBuf) -> (Vec<String>, HashMap<String, pileup::Pileup>) {
+fn load_assembly(assembly_filename: &PathBuf) -> (Vec<(String, String)>,
+                                                  HashMap<String, pileup::Pileup>) {
     log::section_header("Loading assembly");
     let fasta = misc::load_fasta(assembly_filename);
     let mut seq_names = Vec::new();
     let mut pileups = HashMap::new();
-    for (name, sequence) in &fasta {
+    for (name, description, sequence) in &fasta {
         eprintln!("{} ({} bp)", name, sequence.len().to_formatted_string(&Locale::en));
-        seq_names.push(name.clone());
+        seq_names.push((name.clone(), description.clone()));
         pileups.insert(name.clone(), pileup::Pileup::new(sequence));
     }
     eprintln!();
@@ -134,7 +135,7 @@ fn load_alignments(max_errors: u32, careful: bool, sam: &Vec<PathBuf>,
 
 
 fn polish_sequences(debug: &Option<PathBuf>, fraction_invalid: f64, fraction_valid: f64,
-                    min_depth: u32, seq_names: &Vec<String>,
+                    min_depth: u32, seq_names: &Vec<(String, String)>,
                     pileups: &HashMap<String, pileup::Pileup>) -> Vec<(String, usize)>{
     log::section_header("Polishing assembly sequences");
     log::explanation("For each position in the assembly, Polypolish determines the read \
@@ -143,10 +144,10 @@ fn polish_sequences(debug: &Option<PathBuf>, fraction_invalid: f64, fraction_val
                      different sequence than the assembly.");
     let mut debug_file = create_debug_file(&debug);
     let mut new_lengths = Vec::new();
-    for name in seq_names {
+    for (name, description) in seq_names {
         let pileup = pileups.get(name).unwrap();
         let new_length = polish_one_sequence(&debug, fraction_invalid, fraction_valid, min_depth,
-                                             name, pileup, &mut debug_file);
+                                             name, description, pileup, &mut debug_file);
         new_lengths.push((name.clone(), new_length));
     }
     new_lengths
@@ -154,7 +155,7 @@ fn polish_sequences(debug: &Option<PathBuf>, fraction_invalid: f64, fraction_val
 
 
 fn polish_one_sequence(debug: &Option<PathBuf>, fraction_invalid: f64, fraction_valid: f64,
-                       min_depth: u32, name: &str, pileup: &pileup::Pileup,
+                       min_depth: u32, name: &str, description: &str, pileup: &pileup::Pileup,
                        debug_file: &mut Option<File>) -> usize {
     let seq_len = pileup.bases.len();
     eprintln!("Polishing {} ({} bp):", name, seq_len.to_formatted_string(&Locale::en));
@@ -185,12 +186,20 @@ fn polish_one_sequence(debug: &Option<PathBuf>, fraction_invalid: f64, fraction_
         pos += 1;
     }
     polished_seq = polished_seq.replace("-", "");
-    println!(">{}_polypolish", name);
-    println!("{}", polished_seq);
-
+    print_seq_to_stdout(name, description, &polished_seq);
     print_polishing_info(seq_len, total_depth, zero_depth_count, changed_count);
 
     polished_seq.len()
+}
+
+
+fn print_seq_to_stdout(name: &str, description: &str, seq: &str) {
+    print!(">{}", name);
+    if description.len() > 0 {
+        print!(" {}", description);
+    }
+    println!(" polypolish");
+    println!("{}", seq);
 }
 
 
@@ -308,4 +317,3 @@ mod tests {
         assert_eq!(qscore(0.0), "Q0");
     }
 }
-
