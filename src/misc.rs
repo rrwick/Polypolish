@@ -214,6 +214,7 @@ pub fn bankers_rounding(float: f64) -> u32 {
     }
 }
 
+
 #[cfg(test)]
 mod tests {
     use flate2::Compression;
