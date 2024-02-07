@@ -9,8 +9,10 @@
 // Public License for more details. You should have received a copy of the GNU General Public
 // License along with Polypolish. If not, see <http://www.gnu.org/licenses/>.
 
+use std::ops::{Index, IndexMut};
 use std::path::PathBuf;
 use std::collections::{HashMap, HashSet};
+use std::str::FromStr;
 use std::time::Instant;
 use std::fs::File;
 use std::io;
@@ -24,12 +26,12 @@ use crate::misc::{quit_with_error, format_duration};
 
 
 pub fn filter(in1: PathBuf, in2: PathBuf, out1: PathBuf, out2: PathBuf,
-              orientation: String, low: f64, high: f64) {
+              orientation: Orientation, low: f64, high: f64) {
     let start_time = Instant::now();
     check_inputs(&in1, &in2, &out1, &out2, low, high);
-    starting_message(&in1, &in2, &out1, &out2, &orientation, low, high);
+    starting_message(&in1, &in2, &out1, &out2, orientation, low, high);
     let (alignments, before_count) = load_alignments(&in1, &in2);
-    let (low, high, correct_orientation) = get_insert_size_thresholds(&alignments, &orientation,
+    let (low, high, correct_orientation) = get_insert_size_thresholds(&alignments, orientation,
                                                                       low, high);
     let after_count = filter_sams(&in1, &in2, &out1, &out2, &alignments, low, high,
                                   correct_orientation);
@@ -54,7 +56,7 @@ fn check_inputs(in1: &PathBuf, in2: &PathBuf, out1: &PathBuf, out2: &PathBuf,
 
 
 fn starting_message(in1: &PathBuf, in2: &PathBuf, out1: &PathBuf, out2: &PathBuf,
-                    orientation: &String, low: f64, high: f64) {
+                    orientation: Orientation, low: f64, high: f64) {
     log::section_header("Starting Polypolish filter");
     log::explanation("This runs a pre-processing filter on SAM alignments before they are used to \
                       polish. It looks at each read pair and flags alignments that do not seem to \
@@ -71,7 +73,7 @@ fn starting_message(in1: &PathBuf, in2: &PathBuf, out1: &PathBuf, out2: &PathBuf
     eprintln!("  {}", out2.display());
     eprintln!();
     eprintln!("Settings:");
-    eprintln!("  --orientation {}", orientation);
+    eprintln!("  --orientation {}", orientation.to_string());
     eprintln!("  --low {}", low);
     eprintln!("  --high {}", high);
     eprintln!();
@@ -143,12 +145,12 @@ fn load_alignments_one_file(sam_filename: &PathBuf,
 
 
 fn get_insert_size_thresholds(alignments: &HashMap<String, Vec<Alignment>>,
-                              correct_orientation: &String,
-                              low_percentile: f64, high_percentile: f64) -> (u32, u32, String) {
+                              correct_orientation: Orientation,
+                              low_percentile: f64, high_percentile: f64) -> (u32, u32, Orientation) {
     log::section_header("Finding insert size thresholds");
     log::explanation("Read pairs with exactly one alignment per read are used to determine the \
                       orientation and insert size thresholds for the read set.");
-    let mut insert_sizes: HashMap<String, Vec<u32>> = HashMap::new();
+    let mut insert_sizes= InsertSizes::new();
     for (name_1, alignments_1) in alignments {
         if !name_1.ends_with("_1") || alignments_1.len() != 1 {
             continue;
@@ -158,13 +160,14 @@ fn get_insert_size_thresholds(alignments: &HashMap<String, Vec<Alignment>>,
             if alignments_2.len() == 1 && alignments_1[0].ref_name == alignments_2[0].ref_name {
                 let orientation = get_orientation(&alignments_1[0], &alignments_2[0]);
                 let insert_size = get_insert_size(&alignments_1[0], &alignments_2[0]);
-                insert_sizes.entry(orientation).or_default().push(insert_size);
+                insert_sizes[orientation].push(insert_size);
             }
         }
     }
 
     let correct_orientation = determine_correct_orientation(correct_orientation, &insert_sizes);
-    let mut sizes = insert_sizes.remove(&correct_orientation).unwrap_or_else(Vec::new);
+    let mut sizes = insert_sizes[correct_orientation].clone();
+    insert_sizes[correct_orientation].clear();
     if sizes.is_empty() {
         quit_with_error("Error: no read pairs available to determine insert size thresholds");
     }
@@ -178,27 +181,101 @@ fn get_insert_size_thresholds(alignments: &HashMap<String, Vec<Alignment>>,
     (low_threshold, high_threshold, correct_orientation)
 }
 
+#[derive(Debug, Default, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
+#[repr(u8)]
+pub enum Orientation {
+    ReverseReverse,
+    ReverseForward,
+    ForwardReverse,
+    ForwardForward,
+    #[default]
+    Auto
+}
 
-fn get_orientation(a_1: &Alignment, a_2: &Alignment) -> String {
-    let strand_1 = if a_1.is_on_forward_strand() { 'f' } else { 'r' };
-    let strand_2 = if a_2.is_on_forward_strand() { 'f' } else { 'r' };
+impl Orientation {
+    const VARIANTS: [Orientation; 4] = [
+        Orientation::ReverseReverse,
+        Orientation::ReverseForward,
+        Orientation::ForwardReverse,
+        Orientation::ForwardForward,
+    ];
+}
 
+impl From<u8> for Orientation {
+    fn from(value: u8) -> Self {
+        match value {
+            0 => Self::ReverseReverse,
+            1 => Self::ReverseForward,
+            2 => Self::ForwardReverse,
+            3 => Self::ForwardForward,
+            _ => Self::Auto
+        }
+    }
+}
+
+impl ToString for Orientation {
+    fn to_string(&self) -> String {
+        let repr = match self {
+            Self::ReverseReverse => "rr",
+            Self::ReverseForward => "rf",
+            Self::ForwardReverse => "fr",
+            Self::ForwardForward => "ff",
+            Self::Auto => "auto"
+            
+        };
+        repr.into()
+    }
+}
+
+impl FromStr for Orientation {
+    type Err = &'static str;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "rr" => Ok(Self::ReverseReverse),
+            "rf" => Ok(Self::ReverseForward),
+            "fr" => Ok(Self::ForwardReverse),
+            "ff" => Ok(Self::ForwardForward),
+            "auto" => Ok(Self::Auto),
+            _ => Err("invalid orientation")
+        }
+    }
+}
+
+pub struct InsertSizes {
+    sizes: [Vec<u32>; 5]
+}
+
+impl InsertSizes {
+    fn new() -> Self {
+        Self { sizes: [vec![], vec![], vec![], vec![], vec![] ] }
+    }
+
+    fn iter(&self) -> std::slice::Iter<'_, Vec<u32>> {
+        self.sizes.iter()
+    }
+}
+
+impl Index<Orientation> for InsertSizes {
+    type Output = Vec<u32>;
+    fn index(&self, index: Orientation) -> &Self::Output {
+        &self.sizes[index as usize]
+    }
+}
+
+impl IndexMut<Orientation> for InsertSizes {
+    fn index_mut(&mut self, index: Orientation) -> &mut Self::Output {
+        &mut self.sizes[index as usize]
+    }
+}
+
+fn get_orientation(a_1: &Alignment, a_2: &Alignment) -> Orientation {
     // Get the read start positions, which is the ref-end position if on the negative strand.
     let a_1_pos = if a_1.is_on_forward_strand() { a_1.ref_start } else { a_1.get_ref_end() };
     let a_2_pos = if a_2.is_on_forward_strand() { a_2.ref_start } else { a_2.get_ref_end() };
-
-    match (strand_1, strand_2) {
-        ('f', 'r') | ('r', 'f') => {
-            if a_1_pos < a_2_pos {
-                format!("{}{}", strand_1, strand_2)
-            } else {
-                format!("{}{}", strand_2, strand_1)
-            }
-        },
-        ('f', 'f') => { if a_1_pos < a_2_pos { "ff".to_string() } else { "rr".to_string() } },
-        ('r', 'r') => { if a_2_pos < a_1_pos { "ff".to_string() } else { "rr".to_string() } },
-        _ => unreachable!()
-    }
+    let cmp = (a_1_pos > a_2_pos) as u8;
+    let mask = (cmp << 1) + cmp;
+    let orientation = (((a_1.is_on_forward_strand() as u8) << 1) + a_2.is_on_forward_strand() as u8) ^ mask;
+    orientation.into()
 }
 
 
@@ -211,28 +288,28 @@ fn get_insert_size(alignment_1: &Alignment, alignment_2: &Alignment) -> u32 {
 }
 
 
-fn determine_correct_orientation(correct_orientation: &str,
-                                 insert_sizes: &HashMap<String, Vec<u32>>) -> String {
-    for orientation in ["fr", "rf", "ff", "rr"].iter() {
-        let count = insert_sizes.get(*orientation).map_or(0, |v| v.len());
-        eprintln!("{}: {} pairs", orientation, count.to_formatted_string(&Locale::en));
+fn determine_correct_orientation(correct_orientation: Orientation,
+                                 insert_sizes: &InsertSizes) -> Orientation {
+    for orientation in Orientation::VARIANTS {
+        let count = insert_sizes[orientation].len();
+        eprintln!("{}: {} pairs", orientation.to_string(), count.to_formatted_string(&Locale::en));
     }
-    if correct_orientation == "auto" {
+    if correct_orientation == Orientation::Auto {
         let auto_orientation = auto_determine_orientation(insert_sizes);
         eprintln!("\nAutomatically determined correct orientation: {}\n", auto_orientation);
-        auto_orientation
+        Orientation::Auto
     } else {
-        eprintln!("\nUser-specified correct orientation: {}\n", correct_orientation);
-        correct_orientation.to_string()
+        eprintln!("\nUser-specified correct orientation: {}\n", correct_orientation.to_string());
+        correct_orientation
     }
 }
 
 
-fn auto_determine_orientation(insert_sizes: &HashMap<String, Vec<u32>>) -> String {
-    let max_count = insert_sizes.values().map(|v| v.len()).max().unwrap_or(0);
-    let orientations: Vec<&str> = ["fr", "rf", "ff", "rr"].iter()
-        .filter(|&&orientation| insert_sizes.get(orientation).map_or(0, |v| v.len()) == max_count)
-        .cloned().collect();
+fn auto_determine_orientation(insert_sizes: &InsertSizes) -> String {
+    let max_count = insert_sizes.iter().map(|v| v.len()).max().unwrap_or(0);
+    let orientations: Vec<Orientation> = Orientation::VARIANTS.into_iter()
+        .filter(|&orientation| insert_sizes[orientation].len() == max_count)
+        .collect();
     let mut best_orientation = String::new();
     if orientations.len() == 1 {
         best_orientation = orientations[0].to_string();
@@ -269,19 +346,19 @@ fn get_percentile_name(p: f64) -> String {
 
 fn filter_sams(in1: &PathBuf, in2: &PathBuf, out1: &PathBuf, out2: &PathBuf,
                alignments: &HashMap<String, Vec<Alignment>>, low: u32, high: u32,
-               correct_orientation: String) -> usize {
+               correct_orientation: Orientation) -> usize {
     log::section_header("Filtering SAM files");
     log::explanation("Read alignments that are part of a good pair (correct orientation and \
                       insert size) pass the filter and are written unaltered to the output file. \
                       Read alignments which are not part of good pair are written to the output \
                       file with a \"ZP:Z:fail\" tag so Polypolish will not use them.");
     let mut after_count = 0;
-    let result_1 = filter_sam(&in1, &out1, &alignments, low, high, &correct_orientation, 1);
+    let result_1 = filter_sam(&in1, &out1, &alignments, low, high, correct_orientation, 1);
     match result_1 {
         Ok(count) => { after_count += count },
         Err(_) => quit_with_error(&format!("unable to write alignments to {:?}", out1)),
     }
-    let result_2 = filter_sam(&in2, &out2, &alignments, low, high, &correct_orientation, 2);
+    let result_2 = filter_sam(&in2, &out2, &alignments, low, high, correct_orientation, 2);
     match result_2 {
         Ok(count) => { after_count += count },
         Err(_) => quit_with_error(&format!("unable to write alignments to {:?}", out2)),
@@ -292,7 +369,7 @@ fn filter_sams(in1: &PathBuf, in2: &PathBuf, out1: &PathBuf, out2: &PathBuf,
 
 fn filter_sam(in_filename: &PathBuf, out_filename: &PathBuf,
               alignments: &HashMap<String, Vec<Alignment>>, low: u32, high: u32,
-              correct_orientation: &String, read_num: usize) -> io::Result<usize> {
+              correct_orientation: Orientation, read_num: usize) -> io::Result<usize> {
     eprintln!("Filtering {}:", in_filename.display());
     let mut pass_count = 0;
     let mut fail_count = 0;
@@ -347,7 +424,7 @@ fn filter_sam(in_filename: &PathBuf, out_filename: &PathBuf,
 
 
 fn alignment_pass_qc(a: &Alignment, this_alignments: &[Alignment], pair_alignments: &[Alignment],
-                     low: u32, high: u32, correct_orientation: &str) -> bool {
+                     low: u32, high: u32, correct_orientation: Orientation) -> bool {
     // Rules for whether an alignment passes or fails filtering:
     // * If there are no pair alignments, it passes. I.e. if we can't use read pairs to assess the
     //   alignment, we keep it.
@@ -386,7 +463,7 @@ mod tests {
                             strand_2, pos_2);
         let a_1 = Alignment::new_quick(&str_1).unwrap();
         let a_2 = Alignment::new_quick(&str_2).unwrap();
-        assert_eq!(get_orientation(&a_1, &a_2), result);
+        assert_eq!(get_orientation(&a_1, &a_2).to_string(), result);
     }
 
     #[test]
@@ -422,24 +499,32 @@ mod tests {
 
     #[test]
     fn test_auto_determine_orientation() {
-        let insert_sizes: HashMap<String, Vec<u32>> = [
-            ("fr", vec![100, 100, 100]), ("rf", vec![200]), ("ff", vec![300]), ("rr", vec![400])
-        ].iter().map(|&(k, ref v)| (k.to_string(), v.clone())).collect();
+        let mut insert_sizes = InsertSizes::new();
+        insert_sizes[Orientation::ForwardReverse].extend_from_slice(&[100, 100, 100]);
+        insert_sizes[Orientation::ReverseForward].extend_from_slice(&[200]);
+        insert_sizes[Orientation::ForwardForward].extend_from_slice(&[300]);
+        insert_sizes[Orientation::ReverseReverse].extend_from_slice(&[400]);
         assert_eq!(auto_determine_orientation(&insert_sizes), "fr");
 
-        let insert_sizes: HashMap<String, Vec<u32>> = [
-            ("fr", vec![100]), ("rf", vec![200, 200, 200]), ("ff", vec![300]), ("rr", vec![400])
-        ].iter().map(|&(k, ref v)| (k.to_string(), v.clone())).collect();
+        let mut insert_sizes = InsertSizes::new();
+        insert_sizes[Orientation::ForwardReverse].extend_from_slice(&[100]);
+        insert_sizes[Orientation::ReverseForward].extend_from_slice(&[200, 200, 200]);
+        insert_sizes[Orientation::ForwardForward].extend_from_slice(&[300]);
+        insert_sizes[Orientation::ReverseReverse].extend_from_slice(&[400]);
         assert_eq!(auto_determine_orientation(&insert_sizes), "rf");
 
-        let insert_sizes: HashMap<String, Vec<u32>> = [
-            ("fr", vec![100]), ("rf", vec![200]), ("ff", vec![300, 300, 300]), ("rr", vec![400])
-        ].iter().map(|&(k, ref v)| (k.to_string(), v.clone())).collect();
+        let mut insert_sizes = InsertSizes::new();
+        insert_sizes[Orientation::ForwardReverse].extend_from_slice(&[100]);
+        insert_sizes[Orientation::ReverseForward].extend_from_slice(&[200]);
+        insert_sizes[Orientation::ForwardForward].extend_from_slice(&[300, 300, 300]);
+        insert_sizes[Orientation::ReverseReverse].extend_from_slice(&[400]);
         assert_eq!(auto_determine_orientation(&insert_sizes), "ff");
 
-        let insert_sizes: HashMap<String, Vec<u32>> = [
-            ("fr", vec![100]), ("rf", vec![200]), ("ff", vec![300]), ("rr", vec![400, 400, 400])
-        ].iter().map(|&(k, ref v)| (k.to_string(), v.clone())).collect();
+        let mut insert_sizes = InsertSizes::new();
+        insert_sizes[Orientation::ForwardReverse].extend_from_slice(&[100]);
+        insert_sizes[Orientation::ReverseForward].extend_from_slice(&[200]);
+        insert_sizes[Orientation::ForwardForward].extend_from_slice(&[300]);
+        insert_sizes[Orientation::ReverseReverse].extend_from_slice(&[400, 400, 400]);
         assert_eq!(auto_determine_orientation(&insert_sizes), "rr");
     }
 

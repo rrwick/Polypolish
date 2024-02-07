@@ -16,8 +16,9 @@ mod misc;
 mod pileup;
 mod polish;
 
-use std::path::PathBuf;
+use std::{path::PathBuf, str::FromStr};
 use clap::{Parser, Subcommand, crate_version};
+use filter::Orientation;
 
 
 #[derive(Parser)]
@@ -62,8 +63,8 @@ enum Commands {
         out2: PathBuf,
 
         /// Expected pair orientation
-        #[clap(long = "orientation", default_value = "auto")]
-        orientation: String,
+        #[clap(long = "orientation", default_value = "auto", value_parser = Orientation::from_str)]
+        orientation: Orientation,
 
         /// Low percentile threshold
         #[clap(long = "low", default_value = "0.1")]
