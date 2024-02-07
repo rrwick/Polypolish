@@ -194,10 +194,10 @@ pub enum Orientation {
 
 impl Orientation {
     const VARIANTS: [Orientation; 4] = [
-        Orientation::ReverseReverse,
-        Orientation::ReverseForward,
         Orientation::ForwardReverse,
+        Orientation::ReverseForward,
         Orientation::ForwardForward,
+        Orientation::ReverseReverse,
     ];
 }
 
@@ -221,7 +221,6 @@ impl ToString for Orientation {
             Self::ForwardReverse => "fr",
             Self::ForwardForward => "ff",
             Self::Auto => "auto"
-            
         };
         repr.into()
     }
@@ -296,8 +295,9 @@ fn determine_correct_orientation(correct_orientation: Orientation,
     }
     if correct_orientation == Orientation::Auto {
         let auto_orientation = auto_determine_orientation(insert_sizes);
-        eprintln!("\nAutomatically determined correct orientation: {}\n", auto_orientation);
-        Orientation::Auto
+        eprintln!("\nAutomatically determined correct orientation: {}\n",
+                  auto_orientation.to_string());
+        auto_orientation
     } else {
         eprintln!("\nUser-specified correct orientation: {}\n", correct_orientation.to_string());
         correct_orientation
@@ -305,18 +305,17 @@ fn determine_correct_orientation(correct_orientation: Orientation,
 }
 
 
-fn auto_determine_orientation(insert_sizes: &InsertSizes) -> String {
+fn auto_determine_orientation(insert_sizes: &InsertSizes) -> Orientation {
     let max_count = insert_sizes.iter().map(|v| v.len()).max().unwrap_or(0);
     let orientations: Vec<Orientation> = Orientation::VARIANTS.into_iter()
         .filter(|&orientation| insert_sizes[orientation].len() == max_count)
         .collect();
-    let mut best_orientation = String::new();
     if orientations.len() == 1 {
-        best_orientation = orientations[0].to_string();
+        return orientations[0];
     } else {
         quit_with_error("Error: could not automatically determine read pair orientation");
     }
-    best_orientation
+    Orientation::Auto  // unreachable
 }
 
 
@@ -504,28 +503,28 @@ mod tests {
         insert_sizes[Orientation::ReverseForward].extend_from_slice(&[200]);
         insert_sizes[Orientation::ForwardForward].extend_from_slice(&[300]);
         insert_sizes[Orientation::ReverseReverse].extend_from_slice(&[400]);
-        assert_eq!(auto_determine_orientation(&insert_sizes), "fr");
+        assert_eq!(auto_determine_orientation(&insert_sizes).to_string(), "fr");
 
         let mut insert_sizes = InsertSizes::new();
         insert_sizes[Orientation::ForwardReverse].extend_from_slice(&[100]);
         insert_sizes[Orientation::ReverseForward].extend_from_slice(&[200, 200, 200]);
         insert_sizes[Orientation::ForwardForward].extend_from_slice(&[300]);
         insert_sizes[Orientation::ReverseReverse].extend_from_slice(&[400]);
-        assert_eq!(auto_determine_orientation(&insert_sizes), "rf");
+        assert_eq!(auto_determine_orientation(&insert_sizes).to_string(), "rf");
 
         let mut insert_sizes = InsertSizes::new();
         insert_sizes[Orientation::ForwardReverse].extend_from_slice(&[100]);
         insert_sizes[Orientation::ReverseForward].extend_from_slice(&[200]);
         insert_sizes[Orientation::ForwardForward].extend_from_slice(&[300, 300, 300]);
         insert_sizes[Orientation::ReverseReverse].extend_from_slice(&[400]);
-        assert_eq!(auto_determine_orientation(&insert_sizes), "ff");
+        assert_eq!(auto_determine_orientation(&insert_sizes).to_string(), "ff");
 
         let mut insert_sizes = InsertSizes::new();
         insert_sizes[Orientation::ForwardReverse].extend_from_slice(&[100]);
         insert_sizes[Orientation::ReverseForward].extend_from_slice(&[200]);
         insert_sizes[Orientation::ForwardForward].extend_from_slice(&[300]);
         insert_sizes[Orientation::ReverseReverse].extend_from_slice(&[400, 400, 400]);
-        assert_eq!(auto_determine_orientation(&insert_sizes), "rr");
+        assert_eq!(auto_determine_orientation(&insert_sizes).to_string(), "rr");
     }
 
     #[test]
