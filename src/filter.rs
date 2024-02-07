@@ -166,7 +166,7 @@ fn get_insert_size_thresholds(alignments: &HashMap<String, Vec<Alignment>>,
     let correct_orientation = determine_correct_orientation(correct_orientation, &insert_sizes);
     let mut sizes = insert_sizes.remove(&correct_orientation).unwrap_or_else(Vec::new);
     if sizes.is_empty() {
-        quit_with_error("Error: no read pairs available to determine insert size thresholds");
+        quit_with_error("no read pairs available to determine insert size thresholds");
     }
     sizes.sort_unstable();
     let low_threshold = get_percentile(&sizes, low_percentile);
@@ -237,7 +237,7 @@ fn auto_determine_orientation(insert_sizes: &HashMap<String, Vec<u32>>) -> Strin
     if orientations.len() == 1 {
         best_orientation = orientations[0].to_string();
     } else {
-        quit_with_error("Error: could not automatically determine read pair orientation");
+        quit_with_error("could not automatically determine read pair orientation");
     }
     best_orientation
 }
