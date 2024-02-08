@@ -271,7 +271,7 @@ fn get_orientation(a_1: &Alignment, a_2: &Alignment) -> Orientation {
     // Get the read start positions, which is the ref-end position if on the negative strand.
     let a_1_pos = if a_1.is_on_forward_strand() { a_1.ref_start } else { a_1.get_ref_end() };
     let a_2_pos = if a_2.is_on_forward_strand() { a_2.ref_start } else { a_2.get_ref_end() };
-    let cmp = (a_1_pos > a_2_pos) as u8;
+    let cmp = (a_1_pos >= a_2_pos) as u8;
     let mask = (cmp << 1) + cmp;
     let orientation = (((a_1.is_on_forward_strand() as u8) << 1) + a_2.is_on_forward_strand() as u8) ^ mask;
     orientation.into()
@@ -315,7 +315,7 @@ fn auto_determine_orientation(insert_sizes: &InsertSizes) -> Orientation {
     } else {
         quit_with_error("Error: could not automatically determine read pair orientation");
     }
-    Orientation::Auto  // unreachable
+    unreachable!()
 }
 
 
