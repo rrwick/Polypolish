@@ -153,8 +153,10 @@ impl Alignment {
     }
 
     fn starts_and_ends_with_match(&self) -> bool {
-        self.expanded_cigar.chars().next().unwrap() == 'M' &&
-            self.expanded_cigar.chars().last().unwrap() == 'M'
+        let first_char = self.expanded_cigar.chars().next().unwrap();
+        let last_char = self.expanded_cigar.chars().last().unwrap();
+        (first_char == 'M' || first_char == '=' || first_char == 'X') &&
+            (last_char == 'M' || last_char == '=' || last_char == 'X')
     }
 
     fn add_read_seq(&mut self, read_seq: &str, strand: i8) {
@@ -175,7 +177,7 @@ impl Alignment {
         let mut i = 0;
         let mut read_bases = Vec::with_capacity(self.expanded_cigar.len());
         for c in self.expanded_cigar.chars() {
-            if c == 'M' {
+            if c == 'M' || c == '=' || c == 'X' {
                 read_bases.push((i, i+1));
                 i += 1;
             } else if c == 'I' {
@@ -185,8 +187,8 @@ impl Alignment {
                 read_bases.push((i, i));
             } else {
                 // Since non-end-to-end alignments have already been filtered out, the only CIGAR
-                // operations we should encounter here are M, I and D.
-                quit_with_error(&format!("unexpected character (other than M, I or D) in CIGAR \
+                // operations we should encounter here are M, =, X, I and D.
+                quit_with_error(&format!("unexpected character (other than M, =, X, I or D) in CIGAR \
                                           string for read {}: {:?} - did you use BWA MEM to \
                                           generate your alignments?", self.read_name, self.cigar));
             }
@@ -386,6 +388,7 @@ mod tests {
         assert_eq!(get_expanded_cigar("10M", 10).unwrap(), "MMMMMMMMMM");
         assert_eq!(get_expanded_cigar("3M1I7M", 11).unwrap(), "MMMIMMMMMMM");
         assert_eq!(get_expanded_cigar("5M2D4M", 9).unwrap(), "MMMMMDDMMMM");
+        assert_eq!(get_expanded_cigar("5=2X3=", 10).unwrap(), "=====XX===");
         assert_eq!(get_expanded_cigar("*", 1).unwrap(), "");
     }
 
