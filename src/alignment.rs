@@ -155,8 +155,7 @@ impl Alignment {
     fn starts_and_ends_with_match(&self) -> bool {
         let first_char = self.expanded_cigar.chars().next().unwrap();
         let last_char = self.expanded_cigar.chars().last().unwrap();
-        (first_char == 'M' || first_char == '=' || first_char == 'X') &&
-            (last_char == 'M' || last_char == '=' || last_char == 'X')
+        (first_char == 'M' || first_char == '=') && (last_char == 'M' || last_char == '=')
     }
 
     fn add_read_seq(&mut self, read_seq: &str, strand: i8) {
