@@ -138,6 +138,9 @@ fn load_alignments_one_file(sam_filename: &PathBuf,
     eprintln!("{} alignments from {} reads",
               alignment_count.to_formatted_string(&Locale::en),
               read_names.len().to_formatted_string(&Locale::en));
+    if alignments.is_empty() {
+        quit_with_error(&format!("no alignments found in {:?}", sam_filename));
+    }
     Ok(())
 }
 
@@ -161,6 +164,10 @@ fn get_insert_size_thresholds(alignments: &HashMap<String, Vec<Alignment>>,
                 insert_sizes.entry(orientation).or_default().push(insert_size);
             }
         }
+    }
+    if insert_sizes.is_empty() {
+        quit_with_error("no one-alignment-per-read pairs available to determine orientation and \
+                         insert size thresholds");
     }
 
     let correct_orientation = determine_correct_orientation(correct_orientation, &insert_sizes);
@@ -231,15 +238,11 @@ fn determine_correct_orientation(correct_orientation: &str,
 fn auto_determine_orientation(insert_sizes: &HashMap<String, Vec<u32>>) -> String {
     let max_count = insert_sizes.values().map(|v| v.len()).max().unwrap_or(0);
     let orientations: Vec<&str> = ["fr", "rf", "ff", "rr"].iter()
-        .filter(|&&orientation| insert_sizes.get(orientation).map_or(0, |v| v.len()) == max_count)
-        .cloned().collect();
-    let mut best_orientation = String::new();
-    if orientations.len() == 1 {
-        best_orientation = orientations[0].to_string();
-    } else {
+        .filter(|&&o| insert_sizes.get(o).map_or(0, |v| v.len()) == max_count).cloned().collect();
+    if orientations.len() != 1 {
         quit_with_error("could not automatically determine read pair orientation");
     }
-    best_orientation
+    orientations[0].to_string()
 }
 
 
