@@ -23,16 +23,23 @@ use crate::log;
 use crate::misc::{quit_with_error, format_duration};
 
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum ReadNameStyle { Identical, Slash, Dot }
+
+type AlignmentMap = HashMap<String, Vec<Alignment>>;
+
+
 pub fn filter(in1: PathBuf, in2: PathBuf, out1: PathBuf, out2: PathBuf,
               orientation: String, low: f64, high: f64) {
     let start_time = Instant::now();
     check_inputs(&in1, &in2, &out1, &out2, low, high);
     starting_message(&in1, &in2, &out1, &out2, &orientation, low, high);
-    let (alignments, before_count) = load_alignments(&in1, &in2);
-    let (low, high, correct_orientation) = get_insert_size_thresholds(&alignments, &orientation,
+    let (alignments_1, alignments_2, before_count, read_name_style) = load_alignments(&in1, &in2);
+    let (low, high, correct_orientation) = get_insert_size_thresholds(&alignments_1, &alignments_2,
+                                                                      read_name_style, &orientation,
                                                                       low, high);
-    let after_count = filter_sams(&in1, &in2, &out1, &out2, &alignments, low, high,
-                                  correct_orientation);
+    let after_count = filter_sams(&in1, &in2, &out1, &out2, &alignments_1, &alignments_2,
+                                  read_name_style, low, high, correct_orientation);
     finished_message(start_time, before_count, after_count)
 }
 
@@ -88,28 +95,43 @@ fn finished_message(start_time: Instant, before_count: usize, after_count: usize
 }
 
 
-fn load_alignments(sam_1: &PathBuf, sam_2: &PathBuf) -> (HashMap<String, Vec<Alignment>>, usize) {
+fn load_alignments(sam_1: &PathBuf, sam_2: &PathBuf) -> (AlignmentMap, AlignmentMap, usize,
+                                                         ReadNameStyle) {
     log::section_header("Loading alignments");
-    let mut alignments = HashMap::new();
-    let result_1 = load_alignments_one_file(sam_1, &mut alignments, "_1");
+    let mut alignments_1 = HashMap::new();
+    let mut alignments_2 = HashMap::new();
+    let result_1 = load_alignments_one_file(sam_1, &mut alignments_1);
     match result_1 {
         Ok(()) => (),
         Err(_) => quit_with_error(&format!("unable to load alignments from {:?}", sam_1)),
     }
-    let result_2 = load_alignments_one_file(sam_2, &mut alignments, "_2");
+    let result_2 = load_alignments_one_file(sam_2, &mut alignments_2);
     match result_2 {
         Ok(()) => (),
         Err(_) => quit_with_error(&format!("unable to load alignments from {:?}", sam_2)),
     }
     eprintln!();
-    let count = alignments.values().map(|v| v.len()).sum();
-    (alignments, count)
+
+    let (read_name_style, pair_count) =
+        match detect_read_name_style(&alignments_1, &alignments_2) {
+            Ok(result) => result,
+            Err(e) => {
+                quit_with_error(e);
+                unreachable!();
+            },
+        };
+    eprintln!("Read name style: {}", get_read_name_style_name(read_name_style));
+    eprintln!("Matching read pairs: {}", pair_count.to_formatted_string(&Locale::en));
+    eprintln!();
+
+    let count_1: usize = alignments_1.values().map(|v| v.len()).sum();
+    let count_2: usize = alignments_2.values().map(|v| v.len()).sum();
+    (alignments_1, alignments_2, count_1 + count_2, read_name_style)
 }
 
 
 fn load_alignments_one_file(sam_filename: &PathBuf,
-                            alignments: &mut HashMap<String, Vec<Alignment>>,
-                            read_name_suffix: &str) -> io::Result<()> {
+                            alignments: &mut AlignmentMap) -> io::Result<()> {
     eprint!("{}: ", sam_filename.display());
     let sam_file = File::open(sam_filename)?;
     let reader = BufReader::new(sam_file);
@@ -128,9 +150,8 @@ fn load_alignments_one_file(sam_filename: &PathBuf,
             Err(e) => quit_with_error(&format!("{} in {:?} (line {})",
                                                e, sam_filename, line_count)),
         }
-        let mut alignment = alignment_result.unwrap();
+        let alignment = alignment_result.unwrap();
         if !alignment.is_aligned() {continue;}
-        alignment.read_name.push_str(read_name_suffix);
         read_names.insert(alignment.read_name.clone());
         alignments.entry(alignment.read_name.clone()).or_insert_with(Vec::new).push(alignment);
         alignment_count += 1;
@@ -145,22 +166,74 @@ fn load_alignments_one_file(sam_filename: &PathBuf,
 }
 
 
-fn get_insert_size_thresholds(alignments: &HashMap<String, Vec<Alignment>>,
+fn detect_read_name_style(alignments_1: &AlignmentMap, alignments_2: &AlignmentMap)
+                          -> Result<(ReadNameStyle, usize), &'static str> {
+    let mut matches = Vec::new();
+    for style in [ReadNameStyle::Identical, ReadNameStyle::Slash, ReadNameStyle::Dot] {
+        let count = alignments_1.keys()
+            .filter(|name| get_pair_name(name, 1, style)
+                    .is_some_and(|pair_name| alignments_2.contains_key(&pair_name))).count();
+        if count > 0 {
+            matches.push((style, count));
+        }
+    }
+    if matches.is_empty() {
+        return Err("no matching read names found between --in1 and --in2");
+    }
+    if matches.len() > 1 {
+        return Err("ambiguous or mixed read name styles in --in1 and --in2");
+    }
+
+    let (style, count) = matches[0];
+    if style != ReadNameStyle::Identical &&
+       (!alignments_1.keys().all(|name| get_pair_name(name, 1, style).is_some()) ||
+        !alignments_2.keys().all(|name| get_pair_name(name, 2, style).is_some())) {
+        return Err("mixed read name styles in --in1 and --in2");
+    }
+    Ok((style, count))
+}
+
+
+fn get_pair_name(read_name: &str, read_num: usize, style: ReadNameStyle) -> Option<String> {
+    let (this_suffix, pair_suffix) = match (read_num, style) {
+        (_, ReadNameStyle::Identical) => ("", ""),
+        (1, ReadNameStyle::Slash) => ("/1", "/2"),
+        (2, ReadNameStyle::Slash) => ("/2", "/1"),
+        (1, ReadNameStyle::Dot) => (".1", ".2"),
+        (2, ReadNameStyle::Dot) => (".2", ".1"),
+        _ => unreachable!(),
+    };
+    read_name.strip_suffix(this_suffix).map(|name| format!("{}{}", name, pair_suffix))
+}
+
+
+fn get_read_name_style_name(style: ReadNameStyle) -> &'static str {
+    match style {
+        ReadNameStyle::Identical => "identical",
+        ReadNameStyle::Slash => "/1 and /2 suffixes",
+        ReadNameStyle::Dot => ".1 and .2 suffixes",
+    }
+}
+
+
+fn get_insert_size_thresholds(alignments_1: &AlignmentMap, alignments_2: &AlignmentMap,
+                              read_name_style: ReadNameStyle,
                               correct_orientation: &String,
                               low_percentile: f64, high_percentile: f64) -> (u32, u32, String) {
     log::section_header("Finding insert size thresholds");
     log::explanation("Read pairs with exactly one alignment per read are used to determine the \
                       orientation and insert size thresholds for the read set.");
     let mut insert_sizes: HashMap<String, Vec<u32>> = HashMap::new();
-    for (name_1, alignments_1) in alignments {
-        if !name_1.ends_with("_1") || alignments_1.len() != 1 {
+    for (name_1, read_alignments_1) in alignments_1 {
+        if read_alignments_1.len() != 1 {
             continue;
         }
-        let name_2 = format!("{}_2", &name_1[..name_1.len() - 2]);
-        if let Some(alignments_2) = alignments.get(&name_2) {
-            if alignments_2.len() == 1 && alignments_1[0].ref_name == alignments_2[0].ref_name {
-                let orientation = get_orientation(&alignments_1[0], &alignments_2[0]);
-                let insert_size = get_insert_size(&alignments_1[0], &alignments_2[0]);
+        let name_2 = get_pair_name(name_1, 1, read_name_style).unwrap();
+        if let Some(read_alignments_2) = alignments_2.get(&name_2) {
+            if read_alignments_2.len() == 1 &&
+               read_alignments_1[0].ref_name == read_alignments_2[0].ref_name {
+                let orientation = get_orientation(&read_alignments_1[0], &read_alignments_2[0]);
+                let insert_size = get_insert_size(&read_alignments_1[0], &read_alignments_2[0]);
                 insert_sizes.entry(orientation).or_default().push(insert_size);
             }
         }
@@ -271,7 +344,8 @@ fn get_percentile_name(p: f64) -> String {
 
 
 fn filter_sams(in1: &PathBuf, in2: &PathBuf, out1: &PathBuf, out2: &PathBuf,
-               alignments: &HashMap<String, Vec<Alignment>>, low: u32, high: u32,
+               alignments_1: &AlignmentMap, alignments_2: &AlignmentMap,
+               read_name_style: ReadNameStyle, low: u32, high: u32,
                correct_orientation: String) -> usize {
     log::section_header("Filtering SAM files");
     log::explanation("Read alignments that are part of a good pair (correct orientation and \
@@ -279,12 +353,14 @@ fn filter_sams(in1: &PathBuf, in2: &PathBuf, out1: &PathBuf, out2: &PathBuf,
                       Read alignments which are not part of good pair are written to the output \
                       file with a \"ZP:Z:fail\" tag so Polypolish will not use them.");
     let mut after_count = 0;
-    let result_1 = filter_sam(&in1, &out1, &alignments, low, high, &correct_orientation, 1);
+    let result_1 = filter_sam(in1, out1, alignments_1, alignments_2, read_name_style,
+                              low, high, &correct_orientation, 1);
     match result_1 {
         Ok(count) => { after_count += count },
         Err(_) => quit_with_error(&format!("unable to write alignments to {:?}", out1)),
     }
-    let result_2 = filter_sam(&in2, &out2, &alignments, low, high, &correct_orientation, 2);
+    let result_2 = filter_sam(in2, out2, alignments_2, alignments_1, read_name_style,
+                              low, high, &correct_orientation, 2);
     match result_2 {
         Ok(count) => { after_count += count },
         Err(_) => quit_with_error(&format!("unable to write alignments to {:?}", out2)),
@@ -294,7 +370,8 @@ fn filter_sams(in1: &PathBuf, in2: &PathBuf, out1: &PathBuf, out2: &PathBuf,
 
 
 fn filter_sam(in_filename: &PathBuf, out_filename: &PathBuf,
-              alignments: &HashMap<String, Vec<Alignment>>, low: u32, high: u32,
+              alignments: &AlignmentMap, pair_alignments: &AlignmentMap,
+              read_name_style: ReadNameStyle, low: u32, high: u32,
               correct_orientation: &String, read_num: usize) -> io::Result<usize> {
     eprintln!("Filtering {}:", in_filename.display());
     let mut pass_count = 0;
@@ -319,19 +396,15 @@ fn filter_sam(in_filename: &PathBuf, out_filename: &PathBuf,
             continue;
         }
 
-        let (this_name, pair_name) = if read_num == 1 {
-            (format!("{}_1", a.read_name), format!("{}_2", a.read_name))
-        } else {
-            (format!("{}_2", a.read_name), format!("{}_1", a.read_name))
-        };
-
-        let this_alignments = &alignments[&this_name];
-        let pair_alignments = match alignments.get(&pair_name) {
+        let this_alignments = &alignments[&a.read_name];
+        let pair_name = get_pair_name(&a.read_name, read_num, read_name_style).unwrap();
+        let read_pair_alignments = match pair_alignments.get(&pair_name) {
             Some(alignments) => alignments,
             None => &NO_ALIGNMENTS,
         };
 
-        if alignment_pass_qc(&a, this_alignments, pair_alignments, low, high, correct_orientation) {
+        if alignment_pass_qc(&a, this_alignments, read_pair_alignments, low, high,
+                             correct_orientation) {
             writeln!(writer, "{}", sam_line)?;
             pass_count += 1;
         } else {
@@ -380,6 +453,44 @@ fn alignment_pass_qc(a: &Alignment, this_alignments: &[Alignment], pair_alignmen
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn make_alignment_map(names: &[&str]) -> AlignmentMap {
+        names.iter().map(|name| (name.to_string(), Vec::new())).collect()
+    }
+
+    #[test]
+    fn test_detect_read_name_style() {
+        let a_1 = make_alignment_map(&["read_a", "read_b"]);
+        let a_2 = make_alignment_map(&["read_a", "read_b"]);
+        assert_eq!(detect_read_name_style(&a_1, &a_2).unwrap(), (ReadNameStyle::Identical, 2));
+
+        let a_1 = make_alignment_map(&["read_a/1", "read_b/1"]);
+        let a_2 = make_alignment_map(&["read_a/2", "read_b/2"]);
+        assert_eq!(detect_read_name_style(&a_1, &a_2).unwrap(), (ReadNameStyle::Slash, 2));
+
+        let a_1 = make_alignment_map(&["read_a.1", "read_b.1"]);
+        let a_2 = make_alignment_map(&["read_a.2", "read_b.2"]);
+        assert_eq!(detect_read_name_style(&a_1, &a_2).unwrap(), (ReadNameStyle::Dot, 2));
+    }
+
+    #[test]
+    fn test_detect_read_name_style_edge_cases() {
+        let a_1 = make_alignment_map(&["SRR123.1"]);
+        let a_2 = make_alignment_map(&["SRR123.1"]);
+        assert_eq!(detect_read_name_style(&a_1, &a_2).unwrap(), (ReadNameStyle::Identical, 1));
+
+        let a_1 = make_alignment_map(&["read_a/1", "read_b"]);
+        let a_2 = make_alignment_map(&["read_a/2", "read_b"]);
+        assert!(detect_read_name_style(&a_1, &a_2).is_err());
+
+        let a_1 = make_alignment_map(&["read_a/1", "read_b"]);
+        let a_2 = make_alignment_map(&["read_a/2", "read_c/2"]);
+        assert!(detect_read_name_style(&a_1, &a_2).is_err());
+
+        let a_1 = make_alignment_map(&["read_a/1:extra"]);
+        let a_2 = make_alignment_map(&["read_a/2:extra"]);
+        assert!(detect_read_name_style(&a_1, &a_2).is_err());
+    }
 
     fn run_get_orientation_test(pos_1: i32, pos_2: i32,
                                 strand_1: i32, strand_2: i32, result: &str) {
