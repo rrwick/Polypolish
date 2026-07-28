@@ -71,40 +71,44 @@ impl PileupBase {
                                             bankers_rounding(self.depth * fraction_valid));
         let invalid_threshold = std::cmp::max(1, bankers_rounding(self.depth * fraction_invalid));
 
-        let mut valid_seqs = Vec::new();  // holds sequences above the valid threshold
-        let mut intermediate_seqs = Vec::new();  // holds sequences between the two thresholds
+        let mut valid_seq = "";
+        let mut valid_count = 0;
+        let mut has_intermediate = false;
 
         if self.count_a >= valid_threshold {
-            valid_seqs.push("A".to_string());
+            valid_seq = "A";
+            valid_count += 1;
         } else if self.count_a >= invalid_threshold {
-            intermediate_seqs.push("A".to_string());
+            has_intermediate = true;
         }
 
         if self.count_c >= valid_threshold {
-            valid_seqs.push("C".to_string());
+            valid_seq = "C";
+            valid_count += 1;
         } else if self.count_c >= invalid_threshold {
-            intermediate_seqs.push("C".to_string());
+            has_intermediate = true;
         }
 
         if self.count_g >= valid_threshold {
-            valid_seqs.push("G".to_string());
+            valid_seq = "G";
+            valid_count += 1;
         } else if self.count_g >= invalid_threshold {
-            intermediate_seqs.push("G".to_string());
+            has_intermediate = true;
         }
 
         if self.count_t >= valid_threshold {
-            valid_seqs.push("T".to_string());
+            valid_seq = "T";
+            valid_count += 1;
         } else if self.count_t >= invalid_threshold {
-            intermediate_seqs.push("T".to_string());
+            has_intermediate = true;
         }
 
-        let mut all_counts = vec![self.count_a, self.count_c, self.count_g, self.count_t];
         for (seq, count) in &self.counts {
-            all_counts.push(*count);
             if count >= &valid_threshold {
-                valid_seqs.push(seq.clone());
+                valid_seq = seq;
+                valid_count += 1;
             } else if count >= &invalid_threshold {
-                intermediate_seqs.push(seq.clone());
+                has_intermediate = true;
             }
         }
 
@@ -113,18 +117,18 @@ impl PileupBase {
 
         if self.depth < min_depth as f64 {
             status = BaseStatus::DepthTooLow;
-        } else if valid_seqs.len() == 1 {
-            if intermediate_seqs.len() > 0 {
+        } else if valid_count == 1 {
+            if has_intermediate {
                 status = BaseStatus::TooClose;
             } else {
-                new_base = valid_seqs[0].clone();
+                new_base = valid_seq.to_string();
                 if new_base != original {
                     status = BaseStatus::Changed;
                 }
             }
-        } else if valid_seqs.len() == 0 {
+        } else if valid_count == 0 {
             status = BaseStatus::NoValidOptions;
-        } else {  // valid_seqs.len() > 1
+        } else {  // valid_count > 1
             status = BaseStatus::MultipleValidOptions;
         }
 

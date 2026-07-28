@@ -136,7 +136,6 @@ fn load_alignments_one_file(sam_filename: &PathBuf,
     let sam_file = File::open(sam_filename)?;
     let reader = BufReader::new(sam_file);
     let mut alignment_count = 0;
-    let mut read_names = HashSet::new();
     let mut line_count: usize = 0;
     for line in reader.lines() {
         line_count += 1;
@@ -150,15 +149,15 @@ fn load_alignments_one_file(sam_filename: &PathBuf,
             Err(e) => quit_with_error(&format!("{} in {:?} (line {})",
                                                e, sam_filename, line_count)),
         }
-        let alignment = alignment_result.unwrap();
+        let mut alignment = alignment_result.unwrap();
         if !alignment.is_aligned() {continue;}
-        read_names.insert(alignment.read_name.clone());
-        alignments.entry(alignment.read_name.clone()).or_insert_with(Vec::new).push(alignment);
+        let read_name = std::mem::take(&mut alignment.read_name);
+        alignments.entry(read_name).or_insert_with(Vec::new).push(alignment);
         alignment_count += 1;
     }
     eprintln!("{} alignments from {} reads",
               alignment_count.to_formatted_string(&Locale::en),
-              read_names.len().to_formatted_string(&Locale::en));
+              alignments.len().to_formatted_string(&Locale::en));
     if alignments.is_empty() {
         quit_with_error(&format!("no alignments found in {:?}", sam_filename));
     }

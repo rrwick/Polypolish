@@ -272,36 +272,33 @@ pub fn add_to_pileup(filename: &PathBuf, pileups: &mut HashMap<String, Pileup>,
 }
 
 
-fn process_one_read(alignments: Vec<Alignment>, pileups: &mut HashMap<String, Pileup>,
+fn process_one_read(mut alignments: Vec<Alignment>, pileups: &mut HashMap<String, Pileup>,
                     max_errors: u32, careful: bool) -> usize {
     if careful && alignments.len() > 1 {
         return 0;
     }
     let (read_seq, strand) = get_read_seq_from_alignments(&alignments);
 
-    let mut good_alignments = Vec::new();
-    for a in alignments {
-        if a.starts_and_ends_with_match() && a.mismatches <= max_errors && a.pass_qc{
-            good_alignments.push(a);
-        }
-    }
-    let depth_contribution = 1.0 / good_alignments.len() as f64;
+    alignments.retain(|a| {
+        a.starts_and_ends_with_match() && a.mismatches <= max_errors && a.pass_qc
+    });
+    let depth_contribution = 1.0 / alignments.len() as f64;
 
-    for a in &mut good_alignments {
+    for a in &mut alignments {
         let needs_length = a.read_seq == "*";
         if needs_length {
             a.add_read_seq(&read_seq, strand);
         }
     }
 
-    for a in &good_alignments {
-        if !pileups.contains_key(&a.ref_name) {
+    for a in &alignments {
+        if let Some(pileup) = pileups.get_mut(&a.ref_name) {
+            pileup.add_alignment(a, depth_contribution);
+        } else {
             quit_with_error(&format!("query name {} in SAM but not in assembly", a.ref_name))
         }
-        let pileup = pileups.get_mut(&a.ref_name).unwrap();
-        pileup.add_alignment(a, depth_contribution);
     }
-    good_alignments.len()
+    alignments.len()
 }
 
 
