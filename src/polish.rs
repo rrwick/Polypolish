@@ -78,7 +78,7 @@ fn finished_message(debug: &Option<PathBuf>, new_lengths: Vec<(String, usize)>,
     log::section_header("Finished!");
     eprintln!("Polished sequence (to stdout):");
     for (new_name, new_length) in new_lengths {
-        eprintln!("  {}_polypolish ({} bp)", new_name, new_length.to_formatted_string(&Locale::en));
+        eprintln!("  {} ({} bp)", new_name, new_length.to_formatted_string(&Locale::en));
     }
     eprintln!();
     match debug {
