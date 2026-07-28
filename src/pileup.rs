@@ -69,7 +69,7 @@ impl PileupBase {
         let original = self.original.to_string();
         let valid_threshold = std::cmp::max(min_depth,
                                             bankers_rounding(self.depth * fraction_valid));
-        let invalid_threshold = bankers_rounding(self.depth * fraction_invalid);
+        let invalid_threshold = std::cmp::max(1, bankers_rounding(self.depth * fraction_invalid));
 
         let mut valid_seqs = Vec::new();  // holds sequences above the valid threshold
         let mut intermediate_seqs = Vec::new();  // holds sequences between the two thresholds
