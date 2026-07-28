@@ -112,16 +112,16 @@ fn load_alignments(sam_1: &PathBuf, sam_2: &PathBuf) -> (AlignmentMap, Alignment
     }
     eprintln!();
 
-    let (read_name_style, pair_count) =
-        match detect_read_name_style(&alignments_1, &alignments_2) {
-            Ok(result) => result,
-            Err(e) => {
-                quit_with_error(e);
-                unreachable!();
-            },
-        };
+    let read_name_style = detect_read_name_style(&alignments_1, &alignments_2);
+    let pair_count = count_read_pairs(&alignments_1, &alignments_2, read_name_style);
+    if pair_count == 0 {
+        quit_with_error("no matching read names found between --in1 and --in2");
+    }
     eprintln!("Read name style: {}", get_read_name_style_name(read_name_style));
     eprintln!("Matching read pairs: {}", pair_count.to_formatted_string(&Locale::en));
+    if pair_count * 2 < alignments_1.len() || pair_count * 2 < alignments_2.len() {
+        eprintln!("Warning: fewer than 50% of reads have a matching pair");
+    }
     eprintln!();
 
     let count_1: usize = alignments_1.values().map(|v| v.len()).sum();
@@ -166,31 +166,25 @@ fn load_alignments_one_file(sam_filename: &PathBuf,
 }
 
 
-fn detect_read_name_style(alignments_1: &AlignmentMap, alignments_2: &AlignmentMap)
-                          -> Result<(ReadNameStyle, usize), &'static str> {
-    let mut matches = Vec::new();
-    for style in [ReadNameStyle::Identical, ReadNameStyle::Slash, ReadNameStyle::Dot] {
-        let count = alignments_1.keys()
-            .filter(|name| get_pair_name(name, 1, style)
-                    .is_some_and(|pair_name| alignments_2.contains_key(&pair_name))).count();
-        if count > 0 {
-            matches.push((style, count));
-        }
+fn detect_read_name_style(alignments_1: &AlignmentMap,
+                          alignments_2: &AlignmentMap) -> ReadNameStyle {
+    if alignments_1.keys().all(|name| name.ends_with("/1")) &&
+       alignments_2.keys().all(|name| name.ends_with("/2")) {
+        ReadNameStyle::Slash
+    } else if alignments_1.keys().all(|name| name.ends_with(".1")) &&
+              alignments_2.keys().all(|name| name.ends_with(".2")) {
+        ReadNameStyle::Dot
+    } else {
+        ReadNameStyle::Identical
     }
-    if matches.is_empty() {
-        return Err("no matching read names found between --in1 and --in2");
-    }
-    if matches.len() > 1 {
-        return Err("ambiguous or mixed read name styles in --in1 and --in2");
-    }
+}
 
-    let (style, count) = matches[0];
-    if style != ReadNameStyle::Identical &&
-       (!alignments_1.keys().all(|name| get_pair_name(name, 1, style).is_some()) ||
-        !alignments_2.keys().all(|name| get_pair_name(name, 2, style).is_some())) {
-        return Err("mixed read name styles in --in1 and --in2");
-    }
-    Ok((style, count))
+
+fn count_read_pairs(alignments_1: &AlignmentMap, alignments_2: &AlignmentMap,
+                    style: ReadNameStyle) -> usize {
+    alignments_1.keys()
+        .filter(|name| get_pair_name(name, 1, style)
+                .is_some_and(|pair_name| alignments_2.contains_key(&pair_name))).count()
 }
 
 
@@ -460,36 +454,69 @@ mod tests {
 
     #[test]
     fn test_detect_read_name_style() {
+        // Identical read names
         let a_1 = make_alignment_map(&["read_a", "read_b"]);
         let a_2 = make_alignment_map(&["read_a", "read_b"]);
-        assert_eq!(detect_read_name_style(&a_1, &a_2).unwrap(), (ReadNameStyle::Identical, 2));
+        assert_eq!(detect_read_name_style(&a_1, &a_2), ReadNameStyle::Identical);
 
+        // Completely unmatched read names
+        let a_1 = make_alignment_map(&["read_a", "read_b"]);
+        let a_2 = make_alignment_map(&["read_c", "read_d"]);
+        assert_eq!(detect_read_name_style(&a_1, &a_2), ReadNameStyle::Identical);
+
+        // Partially matched read names
+        let a_1 = make_alignment_map(&["read_a", "read_b", "read_c"]);
+        let a_2 = make_alignment_map(&["read_c", "read_e", "read_f"]);
+        assert_eq!(detect_read_name_style(&a_1, &a_2), ReadNameStyle::Identical);
+
+        // Normal /1 and /2 suffixes
         let a_1 = make_alignment_map(&["read_a/1", "read_b/1"]);
         let a_2 = make_alignment_map(&["read_a/2", "read_b/2"]);
-        assert_eq!(detect_read_name_style(&a_1, &a_2).unwrap(), (ReadNameStyle::Slash, 2));
+        assert_eq!(detect_read_name_style(&a_1, &a_2), ReadNameStyle::Slash);
 
+        // Normal .1 and .2 suffixes
         let a_1 = make_alignment_map(&["read_a.1", "read_b.1"]);
         let a_2 = make_alignment_map(&["read_a.2", "read_b.2"]);
-        assert_eq!(detect_read_name_style(&a_1, &a_2).unwrap(), (ReadNameStyle::Dot, 2));
+        assert_eq!(detect_read_name_style(&a_1, &a_2), ReadNameStyle::Dot);
+
+        // Identical read names that end with dot-number suffixes
+        let a_1 = make_alignment_map(&["SRR123.1", "SRR123.2", "SRR123.3", "SRR123.4"]);
+        let a_2 = make_alignment_map(&["SRR123.1", "SRR123.2", "SRR123.3", "SRR123.4"]);
+        assert_eq!(detect_read_name_style(&a_1, &a_2), ReadNameStyle::Identical);
+
+        // Identical read names that end with slash-number suffixes
+        let a_1 = make_alignment_map(&["SRR123/1", "SRR123/2", "SRR123/3", "SRR123/4"]);
+        let a_2 = make_alignment_map(&["SRR123/1", "SRR123/2", "SRR123/3", "SRR123/4"]);
+        assert_eq!(detect_read_name_style(&a_1, &a_2), ReadNameStyle::Identical);
+
+        // Mixed read name styles
+        let a_1 = make_alignment_map(&["read_a/1", "read_b"]);
+        let a_2 = make_alignment_map(&["read_a/2", "read_b"]);
+        assert_eq!(detect_read_name_style(&a_1, &a_2), ReadNameStyle::Identical);
+
+        // /1 and /2 suffixes with extra text after
+        let a_1 = make_alignment_map(&["read_a/1:extra"]);
+        let a_2 = make_alignment_map(&["read_a/2:extra"]);
+        assert_eq!(detect_read_name_style(&a_1, &a_2), ReadNameStyle::Identical);
     }
 
     #[test]
-    fn test_detect_read_name_style_edge_cases() {
-        let a_1 = make_alignment_map(&["SRR123.1"]);
-        let a_2 = make_alignment_map(&["SRR123.1"]);
-        assert_eq!(detect_read_name_style(&a_1, &a_2).unwrap(), (ReadNameStyle::Identical, 1));
+    fn test_count_read_pairs() {
+        let a_1 = make_alignment_map(&["read_a", "read_b", "read_c"]);
+        let a_2 = make_alignment_map(&["read_c", "read_d", "read_e"]);
+        assert_eq!(count_read_pairs(&a_1, &a_2, ReadNameStyle::Identical), 1);
 
-        let a_1 = make_alignment_map(&["read_a/1", "read_b"]);
-        let a_2 = make_alignment_map(&["read_a/2", "read_b"]);
-        assert!(detect_read_name_style(&a_1, &a_2).is_err());
+        let a_1 = make_alignment_map(&["read_a"]);
+        let a_2 = make_alignment_map(&["read_b"]);
+        assert_eq!(count_read_pairs(&a_1, &a_2, ReadNameStyle::Identical), 0);
 
-        let a_1 = make_alignment_map(&["read_a/1", "read_b"]);
-        let a_2 = make_alignment_map(&["read_a/2", "read_c/2"]);
-        assert!(detect_read_name_style(&a_1, &a_2).is_err());
+        let a_1 = make_alignment_map(&["read_a/1", "read_b/1"]);
+        let a_2 = make_alignment_map(&["read_a/2", "read_b/2"]);
+        assert_eq!(count_read_pairs(&a_1, &a_2, ReadNameStyle::Slash), 2);
 
-        let a_1 = make_alignment_map(&["read_a/1:extra"]);
-        let a_2 = make_alignment_map(&["read_a/2:extra"]);
-        assert!(detect_read_name_style(&a_1, &a_2).is_err());
+        let a_1 = make_alignment_map(&["read_a.1", "read_b.1"]);
+        let a_2 = make_alignment_map(&["read_a.2", "read_c.2"]);
+        assert_eq!(count_read_pairs(&a_1, &a_2, ReadNameStyle::Dot), 1);
     }
 
     fn run_get_orientation_test(pos_1: i32, pos_2: i32,
