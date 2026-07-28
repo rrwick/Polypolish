@@ -262,12 +262,12 @@ pub fn add_to_pileup(filename: &PathBuf, pileups: &mut HashMap<String, Pileup>,
         }
         current_read_name = read_name;
     }
-    used_count += process_one_read(current_read_alignments, pileups, max_errors, careful);
-    read_count += 1;
-
     if alignment_count == 0 {
         quit_with_error(&format!("no alignments in {:?}", filename))
     }
+    used_count += process_one_read(current_read_alignments, pileups, max_errors, careful);
+    read_count += 1;
+
     Ok((alignment_count, used_count, read_count))
 }
 
