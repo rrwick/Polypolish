@@ -49,7 +49,7 @@ enum Commands {
         #[clap(long = "in1")]
         in1: PathBuf,
 
-        /// Input SAM file - first second in pairs
+        /// Input SAM file - second read in pairs
         #[clap(long = "in2")]
         in2: PathBuf,
     
@@ -57,7 +57,7 @@ enum Commands {
         #[clap(long = "out1")]
         out1: PathBuf,
 
-        /// Output SAM file - first second in pairs
+        /// Output SAM file - second read in pairs
         #[clap(long = "out2")]
         out2: PathBuf,
 
