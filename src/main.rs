@@ -104,6 +104,7 @@ enum Commands {
         assembly: PathBuf,
 
         /// Short read alignments (one or more files in SAM format)
+        #[arg(required = true, num_args = 1..)]
         sam: Vec<PathBuf>,
     },
 }
